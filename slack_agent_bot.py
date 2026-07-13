@@ -210,11 +210,12 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 * **Quy tắc nghiệp vụ:** [Mô tả các công thức tính toán, điều kiện kích hoạt hoặc logic ràng buộc]
 
 ### 🧪 Kịch bản Kiểm thử & Điều kiện biên (Theo tiêu chuẩn qa-test-planner)
-BẮT BUỘC phải sinh kịch bản kiểm thử bao phủ đầy đủ các nhóm kịch bản sau:
-- **Kịch bản tích cực (Positive Cases):** Luồng xử lý thành công thông thường.
-- **Kịch bản tiêu cực (Negative Cases):** Nhập sai định dạng, sai trạng thái, vi phạm điều kiện logic.
-- **Kịch bản giao diện & trải nghiệm (UI/UX Cases):** Hiển thị danh sách, căn lề, màu sắc thay đổi khi tương tác, responsive.
-- **Kịch bản giá trị biên (Boundary Cases):** Số tiền tối đa/tối thiểu, phân trang, điều kiện biên của thời gian/trạng thái.
+BẮT BUỘC phải sinh kịch bản kiểm thử đầy đủ, chi tiết, KHÔNG ĐƯỢC làm sơ sài. Hãy tạo ít nhất **15 đến 20 kịch bản test** (hàng dữ liệu trong bảng) bao phủ đầy đủ các nhóm sau:
+- **Kịch bản Tích cực (Positive):** Luồng xử lý thành công thông thường (Tạo nháp, gửi duyệt, kế toán duyệt, kế toán chi tiền mark-paid, hoàn ứng tự động khi confirm).
+- **Kịch bản Tiêu cực (Negative):** Nhập sai định dạng, dữ liệu trống, vượt hạn mức, trùng lặp người nhận, duyệt/chi khi sai trạng thái.
+- **Kịch bản Phân quyền (Permissions):** User không có quyền kế toán cố gắng thêm/duyệt/chi/hủy phiếu.
+- **Kịch bản UI/UX & Danh sách:** Hiển thị danh sách, kiểm tra căn lề text/number, hover thay đổi màu nền row, phân trang, lọc theo trạng thái/kỳ lương/chi nhánh, xuất file excel.
+- **Kịch bản Giá trị biên & Hoàn ứng nâng cao (Boundary & Settle):** Tạm ứng đúng hạn mức biên (100tr), vượt hạn mức biên (101tr), hoàn ứng đủ, hoàn ứng một phần (carryforward dư nợ sang kỳ sau), hoàn ứng đa người nhận.
 
 Định dạng trình bày bắt buộc dưới cả 2 dạng:
 
@@ -224,7 +225,7 @@ BẮT BUỘC phải sinh kịch bản kiểm thử bao phủ đầy đủ các n
   * *Kết quả mong đợi:* [Kết quả mong đợi]
   * *Dữ liệu test:* [Dữ liệu test mẫu hoặc 'N/A']
 
-2. **Dạng bảng UAT 5 cột (Bắt buộc bọc trong khối code triple-backtick ```text để hệ thống tự tạo file Excel và người dùng dễ dàng copy-paste):**
+2. **Dạng bảng UAT 5 cột (Bắt buộc bọc trong khối code triple-backtick ```text để hệ thống tự tạo file Excel và người dùng dễ dàng copy-paste, yêu cầu có ít nhất 15-20 hàng dữ liệu):**
 ```text
 | Sub Module | Mô tả | Bước thực hiện | Kết quả mong đợi | Dữ liệu test |
 | :--- | :--- | :--- | :--- | :--- |
