@@ -128,9 +128,10 @@ def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
         filter_bugs: Đặt là True nếu chỉ muốn tìm bug/lỗi. Đặt là False nếu chỉ muốn tìm task nghiệp vụ. Đặt là None/không truyền để lấy cả hai.
     """
     team_id = os.environ.get("CLICKUP_TEAM_ID", "90181237095")
+    list_id = os.environ.get("CLICKUP_LIST_ID", "901818745715")
     res = call_clickup_mcp("clickup_search_tasks", {
         "team_id": team_id,
-        "search": query,
+        "list_ids": [list_id],
         "subtasks": True,
         "include_closed": True
     })
