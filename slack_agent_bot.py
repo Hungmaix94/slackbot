@@ -127,7 +127,7 @@ def create_excel_from_tables(tables, filepath, query=""):
     
     # Định nghĩa font và viền chuẩn cho Use Case (Arial)
     uc_title_font = Font(name="Arial", size=14, bold=True, color="1F4E78")
-    uc_subtitle_font = Font(name="Arial", size=11, italic=True, color="595959")
+    uc_subtitle_font = Font(name="Arial", size=10, bold=False, color="595959")
     uc_header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
     uc_header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid") # Xanh Navy
     
@@ -136,10 +136,10 @@ def create_excel_from_tables(tables, filepath, query=""):
     uc_group_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid") # Xanh dương nhạt
     
     uc_thin_border = Border(
-        left=Side(style='thin', color='D3D3D3'),
-        right=Side(style='thin', color='D3D3D3'),
-        top=Side(style='thin', color='D3D3D3'),
-        bottom=Side(style='thin', color='D3D3D3')
+        left=Side(style='thin', color='BFBFBF'),
+        right=Side(style='thin', color='BFBFBF'),
+        top=Side(style='thin', color='BFBFBF'),
+        bottom=Side(style='thin', color='BFBFBF')
     )
     
     for idx, table in enumerate(tables):
