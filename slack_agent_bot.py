@@ -556,6 +556,22 @@ async def handle_usecase_command(ack, body, say, client):
     # Run query response process
     await handle_query_and_respond(query, [], channel_id, None, client, say)
 
+@app.command("/testcase")
+async def handle_testcase_command(ack, body, say, client):
+    await ack()
+    text = body.get("text", "").strip()
+    channel_id = body.get("channel_id")
+    
+    if not text:
+        await say("👋 Bạn đã dùng lệnh `/testcase`. Hãy cung cấp thêm thông tin nghiệp vụ cần sinh kịch bản test nhé! Ví dụ: `/testcase nghiệp vụ tạm ứng hoa hồng` (kết quả sẽ được tự động xuất sang file Excel kịch bản UAT 9 cột tiêu chuẩn)")
+        return
+        
+    query = f"Hãy sinh chi tiết đặc tả kịch bản test UAT cho yêu cầu sau: {text}"
+    await say(f"⏳ Đang phân tích tài liệu SRS và khởi tạo danh sách Kịch bản kiểm thử UAT cho nghiệp vụ: *{text}*, vui lòng đợi trong giây lát...")
+    
+    # Run query response process
+    await handle_query_and_respond(query, [], channel_id, None, client, say)
+
 async def main():
     app_token = os.environ.get("SLACK_APP_TOKEN")
     if not app_token:
