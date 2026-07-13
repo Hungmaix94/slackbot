@@ -107,16 +107,16 @@ def create_excel_from_rows(rows, filepath):
     # Hiển thị đường lưới trong Excel
     ws.views.sheetView[0].showGridLines = True
     
-    # Cấu hình Font và Fill cho Header
-    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
-    data_font = Font(name="Calibri", size=11)
+    # Cấu hình Font và Fill cho Header giống hệt file mẫu Kịch bản UAT.xlsx
+    header_font = Font(name="Times New Roman", size=14, bold=True, color="000000")
+    header_fill = PatternFill(start_color="93C47D", end_color="93C47D", fill_type="solid") # Màu xanh lá pastel của file mẫu
+    data_font = Font(name="Times New Roman", size=14, bold=False, color="000000")
     
     thin_border = Border(
-        left=Side(style='thin', color='D9D9D9'),
-        right=Side(style='thin', color='D9D9D9'),
-        top=Side(style='thin', color='D9D9D9'),
-        bottom=Side(style='thin', color='D9D9D9')
+        left=Side(style='thin', color='000000'),
+        right=Side(style='thin', color='000000'),
+        top=Side(style='thin', color='000000'),
+        bottom=Side(style='thin', color='000000')
     )
     
     # Định nghĩa Header chuẩn của UAT
@@ -166,11 +166,11 @@ def create_excel_from_rows(rows, filepath):
             cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
             cell.font = data_font
             
-            # Căn lề các cột
+            # Căn lề các cột giống file mẫu (vertical="center")
             if c_idx in [1, 2, 5, 7]: # Sub Module, ID, Dữ liệu test, Trạng thái(Web) căn giữa
-                cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             else:
-                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
                 
             cell.border = thin_border
             
