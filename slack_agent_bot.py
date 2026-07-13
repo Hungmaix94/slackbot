@@ -108,7 +108,11 @@ def call_clickup_mcp(tool_name, arguments):
 
 def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
     """
-    Tìm kiếm các công việc (tasks) trên ClickUp liên quan đến từ khóa hoặc mã yêu cầu sử dụng ClickUp MCP.
+    Tìm kiếm các công việc (tasks) hoặc bug trên ClickUp liên quan đến từ khóa sử dụng ClickUp MCP.
+
+    Args:
+        query: Từ khóa hoặc chủ đề cần tìm kiếm (ví dụ: 'tạm ứng', 'hoa hồng', 'đối chiếu').
+        filter_bugs: Đặt là True nếu chỉ muốn tìm bug/lỗi. Đặt là False nếu chỉ muốn tìm task nghiệp vụ. Đặt là None/không truyền để lấy cả hai.
     """
     team_id = os.environ.get("CLICKUP_TEAM_ID", "90181237095")
     res = call_clickup_mcp("clickup_search_tasks", {
@@ -128,8 +132,42 @@ def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
         tasks = res
         
     if not tasks:
-        return f"Không tìm thấy công việc nào liên quan đến từ khóa '{query}' trên ClickUp."
+        return f"Không tìm thấy công việc nào trên ClickUp."
         
+    def remove_accents(input_str: str) -> str:
+        import unicodedata
+        input_str = input_str.replace('đ', 'd').replace('Đ', 'D')
+        nfkd_form = unicodedata.normalize('NFKD', input_str)
+        return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
+        
+    # Lọc theo từ khóa tìm kiếm (query) ở phía Python vì MCP không hỗ trợ tham số search
+    if query:
+        search_keywords = [k.strip().lower() for k in query.split() if len(k.strip()) >= 2]
+        if search_keywords:
+            filtered_tasks = []
+            for t in tasks:
+                name = t.get("name", "").lower()
+                desc = (t.get("description") or "").lower()
+                
+                name_no_accents = remove_accents(name)
+                desc_no_accents = remove_accents(desc)
+                
+                match = True
+                for kw in search_keywords:
+                    kw_no_accents = remove_accents(kw)
+                    kw_pattern = rf'\b{re.escape(kw)}\b'
+                    kw_no_accents_pattern = rf'\b{re.escape(kw_no_accents)}\b'
+                    
+                    in_accented = bool(re.search(kw_pattern, name)) or bool(re.search(kw_pattern, desc))
+                    in_unaccented = bool(re.search(kw_no_accents_pattern, name_no_accents)) or bool(re.search(kw_no_accents_pattern, desc_no_accents))
+                    
+                    if not (in_accented or in_unaccented):
+                        match = False
+                        break
+                if match:
+                    filtered_tasks.append(t)
+            tasks = filtered_tasks
+
     # Lọc theo loại công việc (bug vs task)
     if filter_bugs is not None:
         filtered_tasks = []
@@ -153,6 +191,43 @@ def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
         t_status = t.get("status", {}).get("status", "N/A")
         t_url = t.get("url")
         result.append(f"- [{t_id}] {t_name} - Trạng thái: {t_status}")
+        
+    return "\n".join(result)
+
+
+def get_clickup_task(task_id: str) -> str:
+    """
+    Lấy thông tin chi tiết của một task hoặc bug cụ thể trên ClickUp theo ID của task.
+    
+    Args:
+        task_id: ID của task ClickUp (ví dụ: '86exxz2xr').
+    """
+    res = call_clickup_mcp("clickup_get_task", {
+        "task_id": task_id,
+        "include_markdown_description": True
+    })
+    
+    if isinstance(res, dict) and "error" in res:
+        return f"Lỗi khi lấy thông tin task {task_id} từ ClickUp: {res['error']}"
+        
+    if not isinstance(res, dict) or "id" not in res:
+        return f"Không tìm thấy thông tin chi tiết cho task {task_id} trên ClickUp."
+        
+    t_id = res.get("id")
+    t_name = res.get("name", "N/A")
+    t_desc = res.get("description", "")
+    t_status = res.get("status", {}).get("status", "N/A")
+    t_url = res.get("url", "")
+    
+    result = []
+    result.append(f"Task ID: [{t_id}]")
+    result.append(f"Tiêu đề: {t_name}")
+    result.append(f"Trạng thái: {t_status}")
+    result.append(f"Đường dẫn: {t_url}")
+    if t_desc:
+        result.append(f"Mô tả chi tiết:\n{t_desc}")
+    else:
+        result.append("Mô tả chi tiết: (Không có mô tả)")
         
     return "\n".join(result)
 
@@ -568,6 +643,8 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/test-spec.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", v.v.).
+5. TÌM KIẾM CLICKUP: Bạn có quyền sử dụng công cụ `search_clickup_tasks(query, filter_bugs)` để tìm kiếm các task hoặc bug liên quan trên ClickUp. Khi người dùng hỏi về các công việc, task, bug, hoặc tiến độ trên ClickUp, hãy chủ động gọi công cụ này để lấy thông tin mới nhất và hiển thị cho họ.
+6. CHI TIẾT TASK CLICKUP: Bạn có quyền sử dụng công cụ `get_clickup_task(task_id)` để lấy thông tin chi tiết (bao gồm tiêu đề, trạng thái, mô tả) của một task cụ thể trên ClickUp. Khi người dùng cung cấp link ClickUp hoặc mã task (ví dụ: '86exxz2xr'), hãy LUÔN LUÔN chủ động gọi công cụ này để đọc nội dung công việc trước khi phân tích/trả lời.
 
 ĐỘ DÀI & ĐỊNH DẠNG CÂU TRẢ LỜI BẮT BUỘC:
 - MẶC ĐỊNH (TÓM GỌN): Trả lời cực kỳ ngắn gọn, súc tích (dưới 15 dòng). Chỉ nêu các ý chính cốt lõi nhất dưới dạng gạch đầu dòng ngắn.
@@ -582,6 +659,8 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/brd.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong các bảng dữ liệu Use Case) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
+5. TÌM KIẾM CLICKUP: Bạn có quyền sử dụng công cụ `search_clickup_tasks(query, filter_bugs)` để tìm kiếm các task hoặc bug liên quan trên ClickUp. Khi được hỏi về công việc hoặc bug liên quan trên ClickUp, hãy chủ động gọi công cụ này để lấy thông tin.
+6. CHI TIẾT TASK CLICKUP: Bạn có quyền sử dụng công cụ `get_clickup_task(task_id)` để lấy thông tin chi tiết (bao gồm tiêu đề, trạng thái, mô tả) của một task cụ thể trên ClickUp. Khi người dùng cung cấp link ClickUp hoặc mã task (ví dụ: '86exxz2xr'), hãy LUÔN LUÔN chủ động gọi công cụ này để đọc nội dung công việc trước khi phân tích/trả lời.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -635,6 +714,8 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/test-spec.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong bảng kịch bản UAT) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
+5. TÌM KIẾM CLICKUP: Bạn có quyền sử dụng công cụ `search_clickup_tasks(query, filter_bugs)` để tìm kiếm các task hoặc bug liên quan trên ClickUp. Khi được hỏi về kịch bản kiểm thử, bug hoặc task trên ClickUp, hãy chủ động gọi công cụ này để lấy thông tin.
+6. CHI TIẾT TASK CLICKUP: Bạn có quyền sử dụng công cụ `get_clickup_task(task_id)` để lấy thông tin chi tiết (bao gồm tiêu đề, trạng thái, mô tả) của một task cụ thể trên ClickUp. Khi người dùng cung cấp link ClickUp hoặc mã task (ví dụ: '86exxz2xr'), hãy LUÔN LUÔN chủ động gọi công cụ này để đọc nội dung công việc trước khi phân tích/trả lời.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -689,19 +770,19 @@ if qa_skill:
 model_default = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_default,
-    tools=[search_srs_files, read_srs_file]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task]
 )
 
 model_ba = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
-    tools=[search_srs_files, read_srs_file]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task]
 )
 
 model_qa = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
-    tools=[search_srs_files, read_srs_file]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task]
 )
 
 # Khởi tạo Async Slack App
@@ -728,7 +809,7 @@ def markdown_to_slack_links(text: str) -> str:
 
 def extract_clickup_search_term(query: str) -> str:
     """
-    Trích xuất từ khóa tìm kiếm ClickUp phù hợp từ truy vấn của người dùng.
+    Trích xuất từ khóa tìm kiếm ClickUp phù hợp từ truy vấn của người dùng (bản gốc Regex).
     """
     # 1. Nếu query quá ngắn hoặc chỉ là câu chào hỏi, không tìm ClickUp
     q_clean = re.sub(r'<@.*?>', '', query).strip().lower()
@@ -745,6 +826,34 @@ def extract_clickup_search_term(query: str) -> str:
     term = re.sub(r'^/?(usecase|testcase|srs|find|search|lookup|show|cần|hỏi|về|chi tiết đặc tả kịch bản test uat cho yêu cầu sau|đặc tả|kịch bản test)\b', '', term, flags=re.IGNORECASE)
     term = term.strip()
     return term
+
+def extract_clickup_search_term_gemini(query: str) -> str:
+    """
+    Sử dụng Gemini model để trích xuất từ khóa/mã tính năng chuẩn xác nhất từ câu hỏi của người dùng.
+    """
+    prompt = f"""Bạn là chuyên gia trích xuất từ khóa tìm kiếm.
+Hãy trích xuất đúng 1 từ khóa cốt lõi nhất, ngắn gọn (tối đa 2 từ) và đặc trưng nhất (ví dụ: 'tạm ứng', 'HĐLĐ', 'hoa hồng', 'đối chiếu F2') từ câu hỏi của người dùng để tìm kiếm trên ClickUp.
+Không được chứa các từ chung chung như 'các', 'màn', 'tìm', 'task', 'lỗi', 'clickup', 'theo', 'trong', 'module', 'yêu cầu', 'phiếu', 'chức năng'.
+Chỉ trả về duy nhất từ khóa đó, không có dấu ngoặc, không giải thích gì thêm.
+
+Ví dụ:
+- "tìm giúp tôi task Clickup liên quan các màn Hoa hồng theo doanh thu/HH theo tháng-phòng ban..." -> "hoa hồng"
+- "Hãy sinh kịch bản test UAT cho nghiệp vụ tạm ứng hoa hồng" -> "tạm ứng"
+- "Lỗi định dạng xuất file HĐLĐ Khối Hỗ trợ" -> "HĐLĐ"
+- "CR220 cập nhật thông tin" -> "CR220"
+- "tính năng đề xuất hỗ trợ phí bán hàng" -> "hỗ trợ phí"
+
+Câu hỏi: {query}
+Từ khóa:"""
+    try:
+        # Sử dụng model_default để generate nhanh
+        response = genai.GenerativeModel("gemini-3.1-flash-lite").generate_content(prompt)
+        term = response.text.strip().replace('"', '').replace("'", "")
+        print(f"🔑 Gemini extracted ClickUp search term: '{term}'")
+        return term
+    except Exception as e:
+        print(f"❌ Lỗi khi dùng Gemini trích xuất từ khóa: {e}")
+        return extract_clickup_search_term(query)
 
 async def handle_query_and_respond(query, history, channel_id, target_thread_ts, client, say):
     print(f"💬 Bắt đầu xử lý truy vấn: '{query}' (Thread: {target_thread_ts})")
@@ -804,25 +913,31 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
             except Exception as copy_ex:
                 print(f"❌ Lỗi khi lưu bản sao file Excel vào {dest_path}: {copy_ex}")
             
-        # Tự động tìm kiếm ClickUp task liên quan dựa trên query
+        # Tự động tìm kiếm ClickUp task liên quan dựa trên query nếu model chưa tự gọi tool ClickUp
         clickup_section = ""
-        try:
-            search_term = extract_clickup_search_term(query)
-            if search_term and len(search_term) >= 3:
-                # Phân loại xem người dùng đang hỏi về "bug/lỗi" hay "task/nghiệp vụ" thông thường
-                q_lower = query.lower()
-                is_asking_for_bugs = ("bug" in q_lower or "lỗi" in q_lower or "fix" in q_lower or "sửa" in q_lower)
-                
-                clickup_res = search_clickup_tasks(search_term, filter_bugs=is_asking_for_bugs)
-                if clickup_res and "Lỗi" not in clickup_res and "Không tìm thấy" not in clickup_res:
-                    # Bóc tách danh sách task
-                    lines = clickup_res.split("\n")
-                    task_lines = [l for l in lines if l.strip().startswith("-")]
-                    if task_lines:
-                        title_label = "Các bug/lỗi liên quan trên ClickUp:" if is_asking_for_bugs else "Các công việc liên quan trên ClickUp:"
-                        clickup_section = f"\n\n---\n*{title_label}*\n" + "\n".join(task_lines)
-        except Exception as e:
-            print(f"❌ Lỗi khi tự động tìm kiếm ClickUp: {e}")
+        has_clickup_in_response = (
+            "ClickUp:" in response.text or 
+            "clickup.com" in response.text or 
+            any(re.search(r'\[86ey[a-z0-9]+\]', line) for line in response.text.split('\n'))
+        )
+        if not has_clickup_in_response:
+            try:
+                search_term = extract_clickup_search_term_gemini(query)
+                if search_term and len(search_term) >= 2:
+                    # Phân loại xem người dùng đang hỏi về "bug/lỗi" hay "task/nghiệp vụ" thông thường
+                    q_lower = query.lower()
+                    is_asking_for_bugs = ("bug" in q_lower or "lỗi" in q_lower or "fix" in q_lower or "sửa" in q_lower)
+                    
+                    clickup_res = search_clickup_tasks(search_term, filter_bugs=is_asking_for_bugs)
+                    if clickup_res and not clickup_res.startswith("Lỗi") and not clickup_res.startswith("Không tìm thấy"):
+                        # Bóc tách danh sách task
+                        lines = clickup_res.split("\n")
+                        task_lines = [l for l in lines if l.strip().startswith("-")]
+                        if task_lines:
+                            title_label = "Các bug/lỗi liên quan trên ClickUp:" if is_asking_for_bugs else "Các công việc liên quan trên ClickUp:"
+                            clickup_section = f"\n\n---\n*{title_label}*\n" + "\n".join(task_lines)
+            except Exception as e:
+                print(f"❌ Lỗi khi tự động tìm kiếm ClickUp: {e}")
 
         # Gửi câu trả lời bằng văn bản trước
         slack_text = markdown_to_slack_links(response.text + clickup_section)
