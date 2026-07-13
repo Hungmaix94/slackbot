@@ -12,9 +12,135 @@ load_dotenv()
 
 # Cấu hình API Key của Google Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+import requests
 
 # Đường dẫn thư mục tài liệu SRS
 SRS_DIR = os.environ.get("SRS_DIR", "/home/phamhung/Work/MVL/web/docs/srs/docs")
+
+def call_clickup_mcp(tool_name, arguments):
+    import subprocess
+    token = os.environ.get("CLICKUP_TOKEN", "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS")
+    cmd = ["npx", "-y", "@cavort-it-systems/clickup-mcp"]
+    env = dict(os.environ, CLICKUP_API_TOKEN=token)
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=env
+    )
+    try:
+        # 1. Initialize
+        init_req = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "workflow-client", "version": "1.0"}
+            }
+        }
+        proc.stdin.write(json.dumps(init_req) + "\n")
+        proc.stdin.flush()
+        
+        init_resp = None
+        for line in proc.stdout:
+            try:
+                data = json.loads(line)
+                if data.get("id") == 1:
+                    init_resp = data
+                    break
+            except json.JSONDecodeError:
+                continue
+                
+        if not init_resp:
+            return {"error": "Failed to initialize MCP server"}
+            
+        # 2. Send initialized notification
+        init_notif = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        }
+        proc.stdin.write(json.dumps(init_notif) + "\n")
+        proc.stdin.flush()
+        
+        # 3. Call tool
+        tool_req = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments
+            }
+        }
+        proc.stdin.write(json.dumps(tool_req) + "\n")
+        proc.stdin.flush()
+        
+        # 4. Read response
+        tool_resp = None
+        for line in proc.stdout:
+            try:
+                data = json.loads(line)
+                if data.get("id") == 2:
+                    tool_resp = data
+                    break
+            except json.JSONDecodeError:
+                continue
+                
+        if tool_resp and "result" in tool_resp:
+            content = tool_resp["result"].get("content", [])
+            if content and content[0].get("type") == "text":
+                try:
+                    return json.loads(content[0]["text"])
+                except Exception:
+                    return content[0]["text"]
+        return tool_resp
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        proc.stdin.close()
+        proc.terminate()
+        proc.wait()
+
+def search_clickup_tasks(query: str) -> str:
+    """
+    Tìm kiếm các công việc (tasks) trên ClickUp liên quan đến từ khóa hoặc mã yêu cầu sử dụng ClickUp MCP.
+    """
+    team_id = os.environ.get("CLICKUP_TEAM_ID", "90181237095")
+    res = call_clickup_mcp("clickup_search_tasks", {
+        "team_id": team_id,
+        "search": query,
+        "subtasks": True,
+        "include_closed": True
+    })
+    
+    if isinstance(res, dict) and "error" in res:
+        return f"Lỗi khi tìm kiếm task trên ClickUp bằng MCP: {res['error']}"
+        
+    tasks = []
+    if isinstance(res, dict):
+        tasks = res.get("tasks", [])
+    elif isinstance(res, list):
+        tasks = res
+        
+    if not tasks:
+        return f"Không tìm thấy công việc nào liên quan đến từ khóa '{query}' trên ClickUp."
+        
+    result = []
+    result.append(f"🔍 Kết quả tìm kiếm ClickUp Task cho từ khóa '{query}':")
+    for t in tasks[:10]:
+        t_id = t.get("id")
+        t_name = t.get("name")
+        t_status = t.get("status", {}).get("status", "N/A")
+        t_url = t.get("url")
+        result.append(f"- <{t_url}|[{t_id}] {t_name}> - Trạng thái: {t_status}")
+        
+    return "\n".join(result)
+
 
 def search_srs_files(query: str) -> str:
     """
@@ -427,6 +553,7 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/test-spec.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", v.v.).
+5. TRA CỨU CLICKUP TASK: Bạn có công cụ `search_clickup_tasks` để tìm kiếm các công việc liên quan trên ClickUp. Khi nhận được câu hỏi từ người dùng, hãy luôn tự động gọi công cụ này để tìm các task ClickUp liên quan đến nghiệp vụ đó và liệt kê chúng ở cuối câu trả lời.
 
 ĐỘ DÀI & ĐỊNH DẠNG CÂU TRẢ LỜI BẮT BUỘC:
 - MẶC ĐỊNH (TÓM GỌN): Trả lời cực kỳ ngắn gọn, súc tích (dưới 15 dòng). Chỉ nêu các ý chính cốt lõi nhất dưới dạng gạch đầu dòng ngắn.
@@ -441,6 +568,7 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/brd.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong các bảng dữ liệu Use Case) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
+5. TRA CỨU CLICKUP TASK: Bạn có công cụ `search_clickup_tasks` để tìm kiếm các công việc liên quan trên ClickUp. Khi phân tích nghiệp vụ hoặc sinh đặc tả Use Case, hãy luôn tự động gọi công cụ này để tìm các task liên quan trên ClickUp và liệt kê danh sách các task tìm thấy ở cuối câu trả lời.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -494,6 +622,7 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/test-spec.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong bảng kịch bản UAT) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
+5. TRA CỨU CLICKUP TASK: Bạn có công cụ `search_clickup_tasks` để tìm kiếm các công việc liên quan trên ClickUp. Khi thiết kế kịch bản kiểm thử UAT, hãy luôn tự động gọi công cụ này để tìm các task liên quan trên ClickUp và liệt kê danh sách các task tìm thấy ở cuối câu trả lời.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -548,19 +677,19 @@ if qa_skill:
 model_default = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_default,
-    tools=[search_srs_files, read_srs_file]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks]
 )
 
 model_ba = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
-    tools=[search_srs_files, read_srs_file]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks]
 )
 
 model_qa = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
-    tools=[search_srs_files, read_srs_file]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks]
 )
 
 # Khởi tạo Async Slack App
