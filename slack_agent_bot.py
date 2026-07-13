@@ -429,6 +429,22 @@ Lưu ý quan trọng cho Use Case:
 - Cột "Luồng chính" và "Luồng phụ / Ngoại lệ" phải viết **cực kỳ chi tiết, cặn kẽ từng bước tương tác giữa người dùng và hệ thống** (Ví dụ: 1. Người dùng click nút X -> 2. Hệ thống hiển thị form nhập -> 3. Người dùng điền thông tin và nhấn nút Save -> 4. Hệ thống kiểm tra điều kiện và chuyển trạng thái...). KHÔNG viết ngắn gọn hay khái quát. Xuống dòng giữa các bước bằng thẻ `<br>`.
 - Phải sử dụng tiếng Việt đồng nhất 100% cho mọi ô trong bảng (ngoại trừ tên trạng thái kỹ thuật viết hoa).
 
+ĐẶC TẢ CHI TIẾT TỪNG USE CASE THEO CHUẨN KARL WIEGERS / IIBA (13 TRƯỜNG):
+Trong câu trả lời bằng văn bản gửi lên Slack, sau phần 2 bảng trên, bạn BẮT BUỘC phải viết thêm phần đặc tả chi tiết bằng Tiếng Việt theo tiêu chuẩn 13 trường của Karl Wiegers cho ít nhất **3 Use Case phức tạp nhất** (ví dụ: Tạo mới yêu cầu tạm ứng, Phê duyệt/Từ chối yêu cầu, Khấu trừ/Hoàn ứng tự động). Cấu trúc 13 trường gồm:
+1. **Mã UC & Tên UC** (Mã và tên dạng động từ + danh từ)
+2. **Tác nhân (Actors)** (Người dùng tương tác chính và phụ)
+3. **Mô tả (Description)** (Mục đích và kết quả đạt được)
+4. **Sự kiện kích hoạt (Trigger)** (Hành động bắt đầu luồng)
+5. **Điều kiện tiên quyết (Preconditions)** (Trạng thái hệ thống bắt buộc trước khi chạy)
+6. **Hậu điều kiện (Postconditions)** (Trạng thái hệ thống sau khi hoàn thành thành công)
+7. **Luồng chính (Normal Flow)** (Từng bước chi tiết đánh số 1, 2, 3...)
+8. **Luồng phụ / Ngoại lệ (Alternative Flows / Exceptions)** (Cụ thể các nhánh rẽ lỗi, ví dụ: 3a. Dữ liệu sai -> hệ thống báo lỗi...)
+9. **Quy tắc nghiệp vụ liên quan (Business Rules)** (Mã các BR áp dụng)
+10. **Yêu cầu đặc biệt (Special Requirements)** (Ràng buộc phi chức năng hoặc bảo mật)
+11. **Giả định (Assumptions)** (Các giả thiết thiết lập)
+12. **Tần suất sử dụng (Frequency of Use)** (Tần suất ước tính)
+13. **Mức độ ưu tiên (Priority)** (Thấp/Trung bình/Cao)
+
 Hãy liệt kê đầy đủ, chi tiết tất cả các usecase tìm thấy trong tài liệu SRS liên quan đến yêu cầu của người dùng để sinh ra file Excel hoàn chỉnh và chính xác.
 """
 
