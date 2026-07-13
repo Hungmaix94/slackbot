@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import asyncio
 from slack_bolt.async_app import AsyncApp
@@ -12,8 +13,8 @@ load_dotenv()
 # Cấu hình API Key của Google Gemini
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# Đường dẫn thư mục tài liệu SRS cục bộ
-SRS_DIR = "/home/phamhung/Work/MVL/web/docs/srs/docs"
+# Đường dẫn thư mục tài liệu SRS
+SRS_DIR = os.environ.get("SRS_DIR", "/home/phamhung/Work/MVL/web/docs/srs/docs")
 
 def search_srs_files(query: str) -> str:
     """
@@ -67,29 +68,8 @@ def read_srs_file(filepath: str) -> str:
     except Exception as e:
         return f"Lỗi khi đọc tệp tin: {str(e)}"
 
-# Thiết lập model Gemini 3.1 Flash Lite cùng với các công cụ đọc tệp cục bộ
-model = genai.GenerativeModel(
-    model_name="gemini-3.1-flash-lite",
-    tools=[search_srs_files, read_srs_file]
-)
-
-# Khởi tạo Async Slack App
-app = AsyncApp(token=os.environ.get("SLACK_BOT_TOKEN"))
-
-@app.event("app_mention")
-async def handle_mention(event, say):
-    text = event.get("text", "")
-    thread_ts = event.get("thread_ts") or event.get("ts")
-    
-    # Bỏ qua phần tag bot
-    query = text.split(">", 1)[-1].strip()
-    if not query:
-        return
-        
-    print(f"📥 Nhận câu hỏi: '{query}'. Đang suy luận trực tiếp qua Gemini 3.1 Flash Lite...")
-    
-    # Cấu hình chỉ dẫn hệ thống cùng định dạng tóm gọn & chi tiết
-    system_instruction = """
+# Cấu hình chỉ dẫn hệ thống cùng định dạng tóm gọn & chi tiết
+system_instruction = """
 Bạn là một AI Agent đóng vai trò Senior BA và QA Lead, chịu trách nhiệm phân tích và trả lời các câu hỏi về tài liệu SRS của dự án MaiVietLand.
 
 QUY TẮC PHÂN TÍCH & TRẢ LỜI:
@@ -109,7 +89,11 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 * **Quy tắc nghiệp vụ:** [Mô tả các công thức tính toán, điều kiện kích hoạt hoặc logic ràng buộc]
 
 ### 🧪 Kịch bản Kiểm thử & Điều kiện biên
-* **Kịch bản kiểm thử:** [Mô tả cách kiểm tra tính đúng đắn của chức năng]
+* **Bảng kịch bản UAT (Bắt buộc định dạng theo bảng Markdown dưới đây):**
+| Sub Module | Mô tả kịch bản | Bước thực hiện | Kết quả mong đợi | Dữ liệu test |
+| :--- | :--- | :--- | :--- | :--- |
+| [Tên Sub Module, ví dụ: 10.2. Quản lý truy thu/truy lĩnh] | [Mô tả kịch bản test] | [Các bước thực hiện chi tiết, xuống dòng bằng dấu <br>] | [Kết quả mong đợi tương ứng] | [Dữ liệu test mẫu nếu có] |
+
 * **Trường hợp biên:** [Nêu ra các tình huống đặc biệt cần lưu ý như dữ liệu rỗng, sai định dạng, sai trạng thái]
 
 ### ⚠️ Cảnh báo & Thiếu sót tài liệu (nếu có)
@@ -118,20 +102,117 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 ### 📖 Nguồn tham chiếu
 * [Nêu rõ tên file tài liệu làm nguồn tham chiếu]
 """
+
+# Thiết lập model Gemini 3.1 Flash Lite cùng với các công cụ đọc tệp cục bộ và system instruction
+model = genai.GenerativeModel(
+    model_name="gemini-3.1-flash-lite",
+    system_instruction=system_instruction,
+    tools=[search_srs_files, read_srs_file]
+)
+
+# Khởi tạo Async Slack App
+app = AsyncApp(token=os.environ.get("SLACK_BOT_TOKEN"))
+
+@app.event("app_mention")
+async def handle_mention(event, say, client):
+    text = event.get("text", "")
+    thread_ts = event.get("thread_ts")
+    ts = event.get("ts")
+    channel_id = event.get("channel")
+    
+    # Định vị thread đích: trả lời vào thread nếu tin nhắn nằm trong thread, ngược lại tạo thread mới
+    target_thread_ts = thread_ts or ts
+    
+    # Lấy thông tin Bot User ID để loại bỏ mentions
+    try:
+        auth_info = await client.auth_test()
+        bot_user_id = auth_info.get("user_id")
+    except Exception as e:
+        print(f"❌ Lỗi khi lấy thông tin bot auth: {e}")
+        bot_user_id = None
+        
+    # Làm sạch query hiện tại
+    query = text
+    if bot_user_id:
+        query = re.sub(r"<@.*?>", "", query).strip()
+        
+    if not query:
+        await say("👋 Xin chào! Tôi là trợ lý AI chuyên giải đáp tài liệu SRS của dự án MaiVietLand. Hãy nhập câu hỏi sau khi tag tôi nhé! Ví dụ: `@SRS Assist luồng booking`", thread_ts=target_thread_ts)
+        return
+        
+    print(f"📥 Nhận câu hỏi: '{query}' (Thread: {target_thread_ts})")
+    
+    # Xây dựng lịch sử hội thoại nếu cuộc trò chuyện thuộc một Thread
+    history = []
+    if thread_ts:
+        print(f"🔄 Đang đồng bộ lịch sử hội thoại cho thread {thread_ts}...")
+        try:
+            result = await client.conversations_replies(channel=channel_id, ts=thread_ts)
+            thread_messages = result.get("messages", [])
+            
+            # Xử lý các tin nhắn cũ (bỏ qua tin nhắn cuối cùng vì nó là câu hỏi hiện tại)
+            current_role = None
+            current_text_parts = []
+            
+            for msg in thread_messages[:-1]:
+                msg_text = msg.get("text", "")
+                if bot_user_id:
+                    cleaned_msg_text = re.sub(r"<@.*?>", "", msg_text).strip()
+                else:
+                    cleaned_msg_text = msg_text.strip()
+                    
+                if not cleaned_msg_text:
+                    continue
+                    
+                # Xác định vai trò (User hoặc Model)
+                is_bot = "bot_id" in msg or msg.get("user") == bot_user_id
+                role = "model" if is_bot else "user"
+                
+                if current_role is None:
+                    current_role = role
+                    current_text_parts = [cleaned_msg_text]
+                elif current_role == role:
+                    current_text_parts.append(cleaned_msg_text)
+                else:
+                    history.append({
+                        "role": current_role,
+                        "parts": [{"text": "\n".join(current_text_parts)}]
+                    })
+                    current_role = role
+                    current_text_parts = [cleaned_msg_text]
+                    
+            if current_role and current_text_parts:
+                history.append({
+                    "role": current_role,
+                    "parts": [{"text": "\n".join(current_text_parts)}]
+                })
+                
+            # Đảm bảo lịch sử bắt đầu bằng 'user' và xen kẽ chuẩn
+            while history and history[0]["role"] != "user":
+                history.pop(0)
+                
+            # Giới hạn 10 tin nhắn gần nhất để tránh tràn context
+            history = history[-10:]
+            while history and history[0]["role"] != "user":
+                history.pop(0)
+                
+        except Exception as e:
+            print(f"⚠️ Lỗi khi đồng bộ lịch sử thread: {e}")
+            history = []
+            
+    print(f"💬 Số lượt hội thoại trong lịch sử: {len(history)}")
     
     try:
-        # Bắt đầu phiên chat và kích hoạt tự động gọi tool
-        chat = model.start_chat(enable_automatic_function_calling=True)
-        response = chat.send_message(
-            f"{system_instruction}\n\nCâu hỏi của người dùng: {query}"
-        )
+        # Bắt đầu phiên chat với lịch sử hội thoại đã đồng bộ
+        chat = model.start_chat(history=history, enable_automatic_function_calling=True)
+        response = chat.send_message(query)
         
-        # Gửi câu trả lời trực tiếp lên Slack
-        await say(response.text, thread_ts=thread_ts)
+        # Gửi câu trả lời trực tiếp vào thread
+        await say(response.text, thread_ts=target_thread_ts)
         print("✅ Đã phản hồi trực tiếp lên Slack thành công!")
     except Exception as e:
         print(f"❌ Lỗi khi gọi Gemini API: {e}")
-        await say(f"Lỗi khi xử lý câu hỏi: {str(e)}", thread_ts=thread_ts)
+        await say(f"Lỗi khi xử lý câu hỏi: {str(e)}", thread_ts=target_thread_ts)
 
 async def main():
     app_token = os.environ.get("SLACK_APP_TOKEN")
