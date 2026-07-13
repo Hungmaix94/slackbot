@@ -156,11 +156,12 @@ def create_excel_from_tables(tables, filepath, query=""):
     has_sheets = False
     
     # Định nghĩa font và viền chuẩn cho UAT
-    header_font = Font(name="Times New Roman", size=14, bold=True, color="FFFFFF")
+    header_font = Font(name="Times New Roman", size=14, bold=True, color="000000") # Chữ đen in đậm cho Header
     header_fill = PatternFill(start_color="93C47D", end_color="93C47D", fill_type="solid") # Xanh pastel
-    group_font = Font(name="Times New Roman", size=14, bold=True, color="FFFFFF")
+    group_font = Font(name="Times New Roman", size=14, bold=True, color="000000") # Chữ đen in đậm cho dòng tiêu đề nhóm
     group_fill = PatternFill(start_color="C9DAF8", end_color="C9DAF8", fill_type="solid") # Xanh dương nhạt pastel
-    data_font = Font(name="Arial", size=10, bold=False, color="000000")
+    uat_col_a_empty_font = Font(name="Arial", size=10, bold=False, color="000000")
+    uat_data_font = Font(name="Times New Roman", size=14, bold=False, color="000000") # Chữ thường Times New Roman 14 cho dữ liệu các cột còn lại
     
     thin_border = Border(
         left=Side(style='thin', color='000000'),
@@ -244,11 +245,14 @@ def create_excel_from_tables(tables, filepath, query=""):
                     cleaned_val = str(val).replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
                     cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
                     
-                    if is_group_change:
-                        cell.font = group_font
-                        cell.fill = group_fill
+                    if c_idx == 1:
+                        if is_group_change:
+                            cell.font = group_font
+                            cell.fill = group_fill
+                        else:
+                            cell.font = uat_col_a_empty_font
                     else:
-                        cell.font = data_font
+                        cell.font = uat_data_font
                         
                     if c_idx in [1, 2, 7, 8]:
                         cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
