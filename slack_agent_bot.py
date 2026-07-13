@@ -214,7 +214,7 @@ def create_excel_from_tables(tables, filepath, query=""):
                 ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
             has_sheets = True
             
-        elif len(headers) == 6 and any("UC" in str(h) or "use case" in str(h).lower() for h in headers):
+        elif len(headers) == 6:
             # Bảng Tổng quan UC
             ws = wb.create_sheet(title="Tổng quan UC")
             ws.views.sheetView[0].showGridLines = True
@@ -268,7 +268,7 @@ def create_excel_from_tables(tables, filepath, query=""):
                 ws.column_dimensions[col_letter].width = width
             has_sheets = True
             
-        elif len(headers) == 10 and any("UC" in str(h) or "use case" in str(h).lower() for h in headers):
+        elif len(headers) == 10:
             # Bảng Chi tiết UC
             ws = wb.create_sheet(title="Chi tiết UC")
             ws.views.sheetView[0].showGridLines = True
