@@ -106,7 +106,7 @@ def call_clickup_mcp(tool_name, arguments):
         proc.terminate()
         proc.wait()
 
-def search_clickup_tasks(query: str) -> str:
+def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
     """
     Tìm kiếm các công việc (tasks) trên ClickUp liên quan đến từ khóa hoặc mã yêu cầu sử dụng ClickUp MCP.
     """
@@ -130,8 +130,23 @@ def search_clickup_tasks(query: str) -> str:
     if not tasks:
         return f"Không tìm thấy công việc nào liên quan đến từ khóa '{query}' trên ClickUp."
         
+    # Lọc theo loại công việc (bug vs task)
+    if filter_bugs is not None:
+        filtered_tasks = []
+        for t in tasks:
+            name = t.get("name", "").lower()
+            desc = (t.get("description") or "").lower()
+            is_bug = "bug" in name or "bug" in desc or "lỗi" in name or "lỗi" in desc
+            if filter_bugs == is_bug:
+                filtered_tasks.append(t)
+        tasks = filtered_tasks
+        
+    if not tasks:
+        return f"Không tìm thấy kết quả phù hợp sau khi lọc theo yêu cầu."
+        
     result = []
-    result.append(f"🔍 Kết quả tìm kiếm ClickUp Task cho từ khóa '{query}':")
+    title = "Các bug/lỗi liên quan trên ClickUp:" if filter_bugs else "Các công việc liên quan trên ClickUp:"
+    result.append(f"🔍 {title}")
     for t in tasks[:10]:
         t_id = t.get("id")
         t_name = t.get("name")
@@ -794,13 +809,18 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
         try:
             search_term = extract_clickup_search_term(query)
             if search_term and len(search_term) >= 3:
-                clickup_res = search_clickup_tasks(search_term)
+                # Phân loại xem người dùng đang hỏi về "bug/lỗi" hay "task/nghiệp vụ" thông thường
+                q_lower = query.lower()
+                is_asking_for_bugs = ("bug" in q_lower or "lỗi" in q_lower or "fix" in q_lower or "sửa" in q_lower)
+                
+                clickup_res = search_clickup_tasks(search_term, filter_bugs=is_asking_for_bugs)
                 if clickup_res and "Lỗi" not in clickup_res and "Không tìm thấy" not in clickup_res:
                     # Bóc tách danh sách task
                     lines = clickup_res.split("\n")
                     task_lines = [l for l in lines if l.strip().startswith("-")]
                     if task_lines:
-                        clickup_section = f"\n\n---\n*Các công việc liên quan trên ClickUp:*\n" + "\n".join(task_lines)
+                        title_label = "Các bug/lỗi liên quan trên ClickUp:" if is_asking_for_bugs else "Các công việc liên quan trên ClickUp:"
+                        clickup_section = f"\n\n---\n*{title_label}*\n" + "\n".join(task_lines)
         except Exception as e:
             print(f"❌ Lỗi khi tự động tìm kiếm ClickUp: {e}")
 
