@@ -19,7 +19,7 @@ SRS_DIR = os.environ.get("SRS_DIR", "/home/phamhung/Work/MVL/web/docs/srs/docs")
 
 def call_clickup_mcp(tool_name, arguments):
     import subprocess
-    token = os.environ.get("CLICKUP_TOKEN", "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS")
+    token = os.environ.get("CLICKUP_API_TOKEN") or os.environ.get("CLICKUP_TOKEN") or "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS"
     cmd = ["npx", "-y", "@cavort-it-systems/clickup-mcp"]
     env = dict(os.environ, CLICKUP_API_TOKEN=token)
     proc = subprocess.Popen(
@@ -195,22 +195,19 @@ def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
     return "\n".join(result)
 
 
-def fetch_clickup_task_direct(task_id: str) -> dict:
-    token = os.environ.get("CLICKUP_TOKEN", "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS")
-    headers = {"Authorization": token}
-    url = f"https://api.clickup.com/api/v2/task/{task_id}"
-    try:
-        resp = requests.get(url, headers=headers, timeout=5)
-        if resp.status_code == 200:
-            return resp.json()
-    except Exception:
-        pass
+def fetch_clickup_task_mcp(task_id: str) -> dict:
+    res = call_clickup_mcp("clickup_get_task", {
+        "task_id": task_id,
+        "include_markdown_description": True
+    })
+    if isinstance(res, dict) and "id" in res:
+        return res
     return None
 
 
 def get_clickup_task(task_id: str) -> str:
     """
-    Lấy thông tin chi tiết của một task hoặc bug cụ thể trên ClickUp theo ID của task.
+    Lấy thông tin chi tiết của một task hoặc bug cụ thể trên ClickUp theo ID của task sử dụng ClickUp MCP.
     
     Args:
         task_id: ID hoặc URL của task ClickUp (ví dụ: '86exxz2xr').
@@ -223,19 +220,19 @@ def get_clickup_task(task_id: str) -> str:
     if match:
         task_id_cleaned = match.group(0)
         
-    print(f"🔍 Đang truy vấn chi tiết ClickUp Task ID: '{task_id_cleaned}' (từ gốc: '{task_id}')")
+    print(f"🔍 Đang truy vấn chi tiết ClickUp Task ID (MCP): '{task_id_cleaned}' (từ gốc: '{task_id}')")
     
     # Thử lấy trực tiếp bằng ID gốc trước
-    task_data = fetch_clickup_task_direct(task_id_cleaned)
+    task_data = fetch_clickup_task_mcp(task_id_cleaned)
     
     # Nếu không tìm thấy, và ID có độ dài 8 ký tự, bắt đầu bằng '86', tự động khôi phục ký tự thứ 9 bị cắt cụt
     if not task_data and len(task_id_cleaned) == 8 and task_id_cleaned.startswith("86"):
-        print(f"⚠️ Task ID '{task_id_cleaned}' có thể bị cắt cụt (8 ký tự). Bắt đầu đoán ký tự thứ 9...")
+        print(f"⚠️ Task ID '{task_id_cleaned}' có thể bị cắt cụt (8 ký tự). Bắt đầu đoán ký tự thứ 9 via MCP...")
         chars = "abcdefghijklmnopqrstuvwxyz0123456789"
         candidates = [task_id_cleaned + c for c in chars]
         
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            future_to_id = {executor.submit(fetch_clickup_task_direct, cid): cid for cid in candidates}
+            future_to_id = {executor.submit(fetch_clickup_task_mcp, cid): cid for cid in candidates}
             for future in concurrent.futures.as_completed(future_to_id):
                 res = future.result()
                 if res and "id" in res:
