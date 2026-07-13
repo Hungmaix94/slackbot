@@ -219,10 +219,15 @@ def create_excel_from_tables(tables, filepath, query=""):
             ws = wb.create_sheet(title="Tổng quan UC")
             ws.views.sheetView[0].showGridLines = True
             
-            # Tính toán tiêu đề động
+            # Tính toán tiêu đề động sạch sẽ
             title_text = "DANH SÁCH USE CASE"
             if query:
-                q_clean = re.sub(r"(?i)^/?(usecase|testcase)\s*", "", query).strip()
+                match = re.search(r"(?i)cho yêu cầu sau:\s*(.*)", query)
+                if match:
+                    q_clean = match.group(1).strip()
+                else:
+                    q_clean = re.sub(r"(?i)^/?(usecase|testcase)\s*", "", query).strip()
+                q_clean = q_clean.replace("_", "").replace("*", "").strip()
                 if q_clean:
                     title_text += f" — {q_clean.upper()}"
             else:
@@ -427,6 +432,7 @@ Bao gồm đúng 2 bảng Markdown trong câu trả lời theo đúng cấu trú
 
 Lưu ý quan trọng cho Use Case:
 - **ĐỒNG BỘ 1-1 BẮT BUỘC:** Số lượng hàng dữ liệu (số lượng Use Case) trong Bảng 1 (Tổng quan UC) và Bảng 2 (Chi tiết UC) phải HOÀN TOÀN TRÙNG KHỚP VÀ ĐỒNG BỘ 1-1 VỚI NHAU. Nếu Bảng 1 liệt kê bao nhiêu Use Case (từ UC-01 đến UC-12), thì Bảng 2 cũng BẮT BUỘC phải mô tả chi tiết đầy đủ cho bấy nhiêu Use Case đó. TUYỆT ĐỐI KHÔNG ĐƯỢC viết tắt, không dùng dấu ba chấm "...", và không được bỏ sót bất kỳ Use Case nào.
+- **ĐỒNG BỘ TÊN NHÓM BẮT BUỘC:** Giá trị trong cột 'Nhóm' của Bảng 2 (Chi tiết UC) phải trùng khớp hoàn toàn từng chữ với giá trị trong cột 'Nhóm' của Bảng 1 (Tổng quan UC) (Ví dụ: Nếu Bảng 1 ghi nhóm là 'A. Vòng đời phiếu', thì Bảng 2 cũng phải ghi chính xác là 'A. Vòng đời phiếu', KHÔNG ĐƯỢC viết rút gọn thành 'A').
 - Cột "Luồng chính" và "Luồng phụ / Ngoại lệ" phải viết **cực kỳ chi tiết, cặn kẽ từng bước tương tác giữa người dùng và hệ thống** (Ví dụ: 1. Người dùng click nút X -> 2. Hệ thống hiển thị form nhập -> 3. Người dùng điền thông tin và nhấn nút Save -> 4. Hệ thống kiểm tra điều kiện và chuyển trạng thái...). KHÔNG viết ngắn gọn hay khái quát. Xuống dòng giữa các bước bằng thẻ `<br>`.
 - Phải sử dụng tiếng Việt đồng nhất 100% cho mọi ô trong bảng (ngoại trừ tên trạng thái kỹ thuật viết hoa).
 
