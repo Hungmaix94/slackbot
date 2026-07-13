@@ -105,7 +105,7 @@ def parse_all_markdown_tables(text):
         
     return tables
 
-def create_excel_from_tables(tables, filepath):
+def create_excel_from_tables(tables, filepath, query=""):
     wb = openpyxl.Workbook()
     # Xóa sheet mặc định
     default_sheet = wb.active
@@ -113,7 +113,7 @@ def create_excel_from_tables(tables, filepath):
     
     has_sheets = False
     
-    # Định nghĩa font và viền chuẩn
+    # Định nghĩa font và viền chuẩn cho UAT
     header_font = Font(name="Times New Roman", size=14, bold=True, color="000000")
     header_fill = PatternFill(start_color="93C47D", end_color="93C47D", fill_type="solid") # Xanh pastel
     data_font = Font(name="Times New Roman", size=14, bold=False, color="000000")
@@ -125,6 +125,23 @@ def create_excel_from_tables(tables, filepath):
         bottom=Side(style='thin', color='000000')
     )
     
+    # Định nghĩa font và viền chuẩn cho Use Case (Arial)
+    uc_title_font = Font(name="Arial", size=14, bold=True, color="1F4E78")
+    uc_subtitle_font = Font(name="Arial", size=11, italic=True, color="595959")
+    uc_header_font = Font(name="Arial", size=11, bold=True, color="FFFFFF")
+    uc_header_fill = PatternFill(start_color="1F4E78", end_color="1F4E78", fill_type="solid") # Xanh Navy
+    
+    uc_data_font = Font(name="Arial", size=10, bold=False, color="000000")
+    uc_data_font_bold = Font(name="Arial", size=10, bold=True, color="000000")
+    uc_group_fill = PatternFill(start_color="DDEBF7", end_color="DDEBF7", fill_type="solid") # Xanh dương nhạt
+    
+    uc_thin_border = Border(
+        left=Side(style='thin', color='D3D3D3'),
+        right=Side(style='thin', color='D3D3D3'),
+        top=Side(style='thin', color='D3D3D3'),
+        bottom=Side(style='thin', color='D3D3D3')
+    )
+    
     for idx, table in enumerate(tables):
         headers = table['headers']
         rows = table['rows']
@@ -133,29 +150,28 @@ def create_excel_from_tables(tables, filepath):
         if not rows:
             continue
             
-        # Kiểm tra loại bảng dựa trên số cột và tên header
-        if len(headers) == 5:
-            # Bảng UAT 5 cột -> chuyển đổi thành 9 cột UAT chuẩn
+        if len(headers) == 5 and any("Sub Module" in str(h) or "Mô tả" in str(h) for h in headers):
+            # Bảng Kịch bản UAT (5 cột)
             ws = wb.create_sheet(title="Kịch bản UAT")
             ws.views.sheetView[0].showGridLines = True
             
-            uat_headers = [
-                'Sub Module', 'ID', 'Mô tả', 'Bước thực hiện', 
-                'Dữ liệu test', 'Kết quả mong đợi', 'Trạng thái(Web)', 
-                'Kết quả thực tế', 'Ghi chú'
-            ]
+            # Ghi tiêu đề lớn ở Row 1
+            ws.cell(row=1, column=1, value="KỊCH BẢN KIỂM THỬ UAT (USER ACCEPTANCE TEST)").font = Font(name="Times New Roman", size=16, bold=True)
             
-            # Ghi Header
-            for c_idx, h_text in enumerate(uat_headers, 1):
-                cell = ws.cell(row=1, column=c_idx, value=h_text)
+            # Ghi header của bảng ở Row 2
+            custom_headers = ["Sub Module", "ID", "Mô tả kịch bản test", "Bước thực hiện", "Dữ liệu test", "Kết quả mong đợi", "Trạng thái(Web)", "Kết quả thực tế", "Ghi chú"]
+            for c_idx, h_text in enumerate(custom_headers, 1):
+                cell = ws.cell(row=2, column=c_idx, value=h_text)
                 cell.font = header_font
                 cell.fill = header_fill
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 cell.border = thin_border
-                
-            for r_idx, row in enumerate(rows, 2):
+            
+            # Ghi dữ liệu từ Row 3
+            for r_idx, row in enumerate(rows, 3):
                 while len(row) < 5:
                     row.append("")
+                
                 md_sub_module = row[0]
                 md_mota = row[1]
                 md_steps = row[2]
@@ -163,15 +179,15 @@ def create_excel_from_tables(tables, filepath):
                 md_test_data = row[4]
                 
                 excel_row_vals = [
-                    md_sub_module,                             # Col A: Sub Module
-                    f'=IF(G{r_idx}="","",COUNTA($G$2:G{r_idx}))', # Col B: ID
-                    md_mota,                                   # Col C: Mô tả
-                    md_steps,                                  # Col D: Bước thực hiện
-                    md_test_data,                              # Col E: Dữ liệu test
-                    md_expected,                               # Col F: Kết quả mong đợi
-                    "Pass",                                    # Col G: Trạng thái(Web)
-                    "",                                        # Col H: Kết quả thực tế
-                    ""                                         # Col I: Ghi chú
+                    md_sub_module,                             
+                    f'=IF(G{r_idx}="","",COUNTA($G$3:G{r_idx}))', 
+                    md_mota,                                   
+                    md_steps,                                  
+                    md_test_data,                              
+                    md_expected,                               
+                    "Pass",                                    
+                    "",                                        
+                    ""                                         
                 ]
                 
                 for c_idx, val in enumerate(excel_row_vals, 1):
@@ -203,39 +219,53 @@ def create_excel_from_tables(tables, filepath):
             ws = wb.create_sheet(title="Tổng quan UC")
             ws.views.sheetView[0].showGridLines = True
             
-            ws.cell(row=1, column=1, value="DANH SÁCH USE CASE — LÔ ÁP DỤNG CẤU HÌNH HOA HỒNG (LAD)").font = Font(name="Times New Roman", size=14, bold=True)
-            ws.cell(row=2, column=1, value="Sinh tự động từ tài liệu SRS").font = Font(name="Times New Roman", size=12, italic=True)
+            # Tính toán tiêu đề động
+            title_text = "DANH SÁCH USE CASE"
+            if query:
+                q_clean = re.sub(r"(?i)^/?(usecase|testcase)\s*", "", query).strip()
+                if q_clean:
+                    title_text += f" — {q_clean.upper()}"
+            else:
+                title_text += " — TỔNG QUAN"
+                
+            ws.cell(row=1, column=1, value=title_text).font = uc_title_font
+            ws.cell(row=2, column=1, value="Sinh tự động từ tài liệu SRS").font = uc_subtitle_font
             
             for c_idx, h_text in enumerate(headers, 1):
                 cell = ws.cell(row=4, column=c_idx, value=h_text)
-                cell.font = header_font
-                cell.fill = header_fill
+                cell.font = uc_header_font
+                cell.fill = uc_header_fill
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                cell.border = thin_border
+                cell.border = uc_thin_border
                 
+            prev_group = None
             for r_idx, row in enumerate(rows, 5):
                 while len(row) < 6:
                     row.append("")
+                
+                # Kiểm tra xem nhóm có thay đổi không
+                current_group = str(row[1]).strip() if row[1] else ""
+                is_group_change = (current_group != prev_group)
+                if is_group_change:
+                    prev_group = current_group
+                    
                 for c_idx, val in enumerate(row, 1):
                     cleaned_val = str(val).replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
                     cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
-                    cell.font = data_font
-                    if c_idx in [1, 4, 5]:
-                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    
+                    if is_group_change:
+                        cell.font = uc_data_font_bold
+                        cell.fill = uc_group_fill
                     else:
-                        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-                    cell.border = thin_border
+                        cell.font = uc_data_font
+                        
+                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                    cell.border = uc_thin_border
             
-            for col in ws.columns:
-                max_len = 0
-                col_letter = col[0].column_letter
-                for cell in col:
-                    if cell.value:
-                        cell_lines = str(cell.value).split('\n')
-                        for line in cell_lines:
-                            if len(line) > max_len:
-                                max_len = len(line)
-                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
+            # Set cột chuẩn
+            col_widths = {'A': 12, 'B': 26, 'C': 42, 'D': 24, 'E': 25, 'F': 30}
+            for col_letter, width in col_widths.items():
+                ws.column_dimensions[col_letter].width = width
             has_sheets = True
             
         elif len(headers) == 10 and any("UC" in str(h) or "use case" in str(h).lower() for h in headers):
@@ -243,38 +273,41 @@ def create_excel_from_tables(tables, filepath):
             ws = wb.create_sheet(title="Chi tiết UC")
             ws.views.sheetView[0].showGridLines = True
             
-            ws.cell(row=1, column=1, value="CHI TIẾT TỪNG USE CASE").font = Font(name="Times New Roman", size=14, bold=True)
+            ws.cell(row=1, column=1, value="CHI TIẾT TỪNG USE CASE").font = uc_title_font
             
             for c_idx, h_text in enumerate(headers, 1):
                 cell = ws.cell(row=3, column=c_idx, value=h_text)
-                cell.font = header_font
-                cell.fill = header_fill
+                cell.font = uc_header_font
+                cell.fill = uc_header_fill
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                cell.border = thin_border
+                cell.border = uc_thin_border
                 
+            prev_group = None
             for r_idx, row in enumerate(rows, 4):
                 while len(row) < 10:
                     row.append("")
+                
+                # Kiểm tra nhóm thay đổi
+                current_group = str(row[1]).strip() if row[1] else ""
+                is_group_change = (current_group != prev_group)
+                if is_group_change:
+                    prev_group = current_group
+                    
                 for c_idx, val in enumerate(row, 1):
                     cleaned_val = str(val).replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
                     cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
-                    cell.font = data_font
-                    if c_idx in [1, 4, 10]:
-                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-                    else:
-                        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
-                    cell.border = thin_border
+                    
+                    cell.font = uc_data_font
+                    if is_group_change:
+                        cell.fill = uc_group_fill
+                        
+                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                    cell.border = uc_thin_border
             
-            for col in ws.columns:
-                max_len = 0
-                col_letter = col[0].column_letter
-                for cell in col:
-                    if cell.value:
-                        cell_lines = str(cell.value).split('\n')
-                        for line in cell_lines:
-                            if len(line) > max_len:
-                                max_len = len(line)
-                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
+            # Set cột chuẩn
+            col_widths = {'A': 12, 'B': 22, 'C': 32, 'D': 22, 'E': 26, 'F': 22, 'G': 60, 'H': 40, 'I': 28, 'J': 15}
+            for col_letter, width in col_widths.items():
+                ws.column_dimensions[col_letter].width = width
             has_sheets = True
             
         else:
@@ -338,7 +371,8 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 [Câu trả lời ngắn gọn trong 1-2 câu]
 
 ### 🔍 Phân tích Nghiệp vụ
-* **Luồng xử lý:** [Mô tả các bước thực hiện nghiệp vụ liên quan]
+* **Sơ đồ luồng nghiệp vụ (Mermaid Flowchart / Sequence):** BẮT BUỘC vẽ một sơ đồ Mermaid biểu diễn trực quan luồng xử lý hoặc vòng đời trạng thái của nghiệp vụ này (ví dụ: DRAFT -> APPROVED -> PAID). Sử dụng khối code triple-backtick ```mermaid để vẽ.
+* **Luồng xử lý:** [Mô tả chi tiết bằng văn bản từng bước thực hiện nghiệp vụ liên quan]
 * **Quy tắc nghiệp vụ:** [Mô tả các công thức tính toán, điều kiện kích hoạt hoặc logic ràng buộc]
 
 ### 🧪 Kịch bản Kiểm thử & Điều kiện biên (Theo tiêu chuẩn qa-test-planner)
@@ -438,7 +472,7 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
             import tempfile
             fd, temp_path = tempfile.mkstemp(suffix=".xlsx")
             os.close(fd)
-            create_excel_from_tables(tables, temp_path)
+            create_excel_from_tables(tables, temp_path, query)
             excel_file = temp_path
             
         # Gửi câu trả lời bằng văn bản trước
