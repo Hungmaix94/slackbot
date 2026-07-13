@@ -582,7 +582,7 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
         query_lower = query.lower()
         if "usecase" in query_lower or "use case" in query_lower:
             current_model = model_ba
-        elif "testcase" in query_lower or "test case" in query_lower or "kịch bản uat" in query_lower or "kiểm thử" in query_lower:
+        elif any(kw in query_lower for kw in ["testcase", "test case", "kịch bản", "kiểm thử", "uat", "test"]):
             current_model = model_qa
         else:
             current_model = model_default
