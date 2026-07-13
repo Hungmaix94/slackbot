@@ -68,6 +68,88 @@ def read_srs_file(filepath: str) -> str:
     except Exception as e:
         return f"Lỗi khi đọc tệp tin: {str(e)}"
 
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+
+def parse_markdown_table(text):
+    lines = text.split("\n")
+    table_rows = []
+    in_table = False
+    
+    for line in lines:
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            if in_table:
+                break
+            continue
+            
+        # Split by '|' and strip spaces
+        parts = [p.strip() for p in stripped.split("|")[1:-1]]
+        
+        # Skip the separator row (like |:---|:---|)
+        if parts and all(re.match(r"^:?-+:?$", p) for p in parts):
+            in_table = True
+            continue
+            
+        if not any(parts):
+            continue
+            
+        table_rows.append(parts)
+        in_table = True
+        
+    return table_rows
+
+def create_excel_from_rows(rows, filepath):
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Kịch bản UAT"
+    
+    # Hiển thị đường lưới trong Excel
+    ws.views.sheetView[0].showGridLines = True
+    
+    # Cấu hình Font và Fill cho Header
+    header_font = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1F497D", end_color="1F497D", fill_type="solid")
+    data_font = Font(name="Calibri", size=11)
+    
+    thin_border = Border(
+        left=Side(style='thin', color='D9D9D9'),
+        right=Side(style='thin', color='D9D9D9'),
+        top=Side(style='thin', color='D9D9D9'),
+        bottom=Side(style='thin', color='D9D9D9')
+    )
+    
+    for r_idx, row in enumerate(rows, 1):
+        for c_idx, val in enumerate(row, 1):
+            cleaned_val = str(val).replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
+            cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
+            
+            if r_idx == 1:
+                cell.font = header_font
+                cell.fill = header_fill
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            else:
+                cell.font = data_font
+                if c_idx in [1, 5]: # Cột Sub Module và Dữ liệu test căn giữa
+                    cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
+                else:
+                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+            cell.border = thin_border
+            
+    # Tự động căn chỉnh độ rộng cột
+    for col in ws.columns:
+        max_len = 0
+        col_letter = col[0].column_letter
+        for cell in col:
+            if cell.value:
+                cell_lines = str(cell.value).split('\n')
+                for line in cell_lines:
+                    if len(line) > max_len:
+                        max_len = len(line)
+        ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
+        
+    wb.save(filepath)
+
 # Cấu hình chỉ dẫn hệ thống cùng định dạng tóm gọn & chi tiết
 system_instruction = """
 Bạn là một AI Agent đóng vai trò Senior BA và QA Lead, chịu trách nhiệm phân tích và trả lời các câu hỏi về tài liệu SRS của dự án MaiVietLand.
@@ -217,11 +299,50 @@ async def handle_mention(event, say, client):
         chat = model.start_chat(history=history, enable_automatic_function_calling=True)
         response = chat.send_message(query)
         
-        # Gửi câu trả lời trực tiếp vào thread
+        # Phân tích xem câu trả lời có chứa bảng kịch bản UAT hay không
+        excel_file = None
+        try:
+            rows = parse_markdown_table(response.text)
+            if len(rows) > 1: # Ít nhất phải có dòng header + 1 dòng dữ liệu
+                import tempfile
+                fd, temp_path = tempfile.mkstemp(suffix=".xlsx")
+                os.close(fd)
+                create_excel_from_rows(rows, temp_path)
+                excel_file = temp_path
+        except Exception as parse_ex:
+            print(f"⚠️ Không thể parse bảng UAT sang Excel: {parse_ex}")
+            excel_file = None
+            
+        # Gửi câu trả lời bằng văn bản trước
         await say(response.text, thread_ts=target_thread_ts)
-        print("✅ Đã phản hồi trực tiếp lên Slack thành công!")
+        print("✅ Đã phản hồi văn bản lên Slack thành công!")
+        
+        # Nếu có file Excel, tải file đó lên Slack
+        if excel_file:
+            try:
+                print(f"📤 Đang tải file Excel kịch bản UAT lên Slack...")
+                await client.files_upload_v2(
+                    channel=channel_id,
+                    file=excel_file,
+                    filename="Kich_ban_UAT.xlsx",
+                    title="Kịch bản UAT (Sinh tự động)",
+                    initial_comment="📊 Tôi đã tạo sẵn file Excel kịch bản UAT này để bạn tải về trực tiếp:",
+                    thread_ts=target_thread_ts
+                )
+                print("✅ Đã tải file Excel lên Slack thành công!")
+            except Exception as upload_ex:
+                print(f"❌ Lỗi khi upload file Excel lên Slack: {upload_ex}")
+                # Kiểm tra lỗi thiếu quyền ghi file của Slack app
+                if "missing_scope" in str(upload_ex) or "not_in_channel" in str(upload_ex):
+                    await say("⚠️ Bot phát hiện bảng kịch bản UAT nhưng không thể tự động tạo file Excel tải lên do thiếu quyền `files:write` trong ứng dụng Slack. Hãy cấu hình scope `files:write` cho Bot Token nếu muốn nhận file trực tiếp.", thread_ts=target_thread_ts)
+            finally:
+                # Xóa tệp tạm
+                try:
+                    os.remove(excel_file)
+                except Exception:
+                    pass
     except Exception as e:
-        print(f"❌ Lỗi khi gọi Gemini API: {e}")
+        print(f"❌ Lỗi khi xử lý tin nhắn: {e}")
         await say(f"Lỗi khi xử lý câu hỏi: {str(e)}", thread_ts=target_thread_ts)
 
 async def main():
