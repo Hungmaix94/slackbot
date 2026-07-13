@@ -426,6 +426,7 @@ Bao gồm đúng 2 bảng Markdown trong câu trả lời theo đúng cấu trú
   | [Mã UC, ví dụ: UC-01] | [Nhóm, ví dụ: A. Vòng đời lô] | [Tên use case, ví dụ: Tạo lô áp dụng (Nháp)] | [Tác nhân, ví dụ: Người tạo lô (Sale admin)] | [Điều kiện tiên quyết, ví dụ: Đăng nhập thành công] | [Trigger, ví dụ: Chọn 'Tạo lô'] | [Mô tả chi tiết từng bước thao tác thực tế: 1. Click...<br>2. Nhập... (xuống dòng bằng <br>)] | [Mô tả chi tiết luồng phụ/ngoại lệ, xuống dòng bằng <br>] | [Hậu điều kiện] | [BR liên quan] |
 
 Lưu ý quan trọng cho Use Case:
+- **ĐỒNG BỘ 1-1 BẮT BUỘC:** Số lượng hàng dữ liệu (số lượng Use Case) trong Bảng 1 (Tổng quan UC) và Bảng 2 (Chi tiết UC) phải HOÀN TOÀN TRÙNG KHỚP VÀ ĐỒNG BỘ 1-1 VỚI NHAU. Nếu Bảng 1 liệt kê bao nhiêu Use Case (từ UC-01 đến UC-12), thì Bảng 2 cũng BẮT BUỘC phải mô tả chi tiết đầy đủ cho bấy nhiêu Use Case đó. TUYỆT ĐỐI KHÔNG ĐƯỢC viết tắt, không dùng dấu ba chấm "...", và không được bỏ sót bất kỳ Use Case nào.
 - Cột "Luồng chính" và "Luồng phụ / Ngoại lệ" phải viết **cực kỳ chi tiết, cặn kẽ từng bước tương tác giữa người dùng và hệ thống** (Ví dụ: 1. Người dùng click nút X -> 2. Hệ thống hiển thị form nhập -> 3. Người dùng điền thông tin và nhấn nút Save -> 4. Hệ thống kiểm tra điều kiện và chuyển trạng thái...). KHÔNG viết ngắn gọn hay khái quát. Xuống dòng giữa các bước bằng thẻ `<br>`.
 - Phải sử dụng tiếng Việt đồng nhất 100% cho mọi ô trong bảng (ngoại trừ tên trạng thái kỹ thuật viết hoa).
 
