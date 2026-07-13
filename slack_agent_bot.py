@@ -137,7 +137,7 @@ def search_clickup_tasks(query: str) -> str:
         t_name = t.get("name")
         t_status = t.get("status", {}).get("status", "N/A")
         t_url = t.get("url")
-        result.append(f"- [[{t_id}] {t_name}]({t_url}) - Trạng thái: {t_status}")
+        result.append(f"- [{t_id}] {t_name} - Trạng thái: {t_status}")
         
     return "\n".join(result)
 
@@ -553,7 +553,6 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/test-spec.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", v.v.).
-5. TRA CỨU CLICKUP TASK: Bạn có công cụ `search_clickup_tasks` để tìm kiếm các công việc liên quan trên ClickUp. Khi nhận được câu hỏi từ người dùng, hãy luôn tự động gọi công cụ này để tìm các task ClickUp liên quan đến nghiệp vụ đó và liệt kê chúng ở cuối câu trả lời.
 
 ĐỘ DÀI & ĐỊNH DẠNG CÂU TRẢ LỜI BẮT BUỘC:
 - MẶC ĐỊNH (TÓM GỌN): Trả lời cực kỳ ngắn gọn, súc tích (dưới 15 dòng). Chỉ nêu các ý chính cốt lõi nhất dưới dạng gạch đầu dòng ngắn.
@@ -568,7 +567,6 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/brd.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong các bảng dữ liệu Use Case) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
-5. TRA CỨU CLICKUP TASK: Bạn có công cụ `search_clickup_tasks` để tìm kiếm các công việc liên quan trên ClickUp. Khi phân tích nghiệp vụ hoặc sinh đặc tả Use Case, hãy luôn tự động gọi công cụ này để tìm các task liên quan trên ClickUp và liệt kê danh sách các task tìm thấy ở cuối câu trả lời.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -622,7 +620,6 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 2. NÓI "KHÔNG BIẾT" NẾU THIẾU THÔNG TIN: Nếu không tìm thấy thông tin trong tài liệu SRS, trả lời: "Thông tin này hiện chưa được đề cập hoặc chưa có trong tài liệu SRS của dự án."
 3. LUÔN TRÍCH DẪN NGUỒN: Cuối mỗi câu trả lời hoặc ý chính, nêu rõ tên file tài liệu làm nguồn tham chiếu (ví dụ: "[Nguồn: features/booking/test-spec.md]").
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong bảng kịch bản UAT) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
-5. TRA CỨU CLICKUP TASK: Bạn có công cụ `search_clickup_tasks` để tìm kiếm các công việc liên quan trên ClickUp. Khi thiết kế kịch bản kiểm thử UAT, hãy luôn tự động gọi công cụ này để tìm các task liên quan trên ClickUp và liệt kê danh sách các task tìm thấy ở cuối câu trả lời.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -677,19 +674,19 @@ if qa_skill:
 model_default = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_default,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks]
+    tools=[search_srs_files, read_srs_file]
 )
 
 model_ba = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks]
+    tools=[search_srs_files, read_srs_file]
 )
 
 model_qa = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks]
+    tools=[search_srs_files, read_srs_file]
 )
 
 # Khởi tạo Async Slack App
@@ -713,6 +710,26 @@ def markdown_to_slack_links(text: str) -> str:
     text = re.sub(raw_pattern, r'<https://app.clickup.com/t/\1|\1>', text)
     
     return text
+
+def extract_clickup_search_term(query: str) -> str:
+    """
+    Trích xuất từ khóa tìm kiếm ClickUp phù hợp từ truy vấn của người dùng.
+    """
+    # 1. Nếu query quá ngắn hoặc chỉ là câu chào hỏi, không tìm ClickUp
+    q_clean = re.sub(r'<@.*?>', '', query).strip().lower()
+    if not q_clean or q_clean in ["hi", "hello", "xin chào", "chào", "chào bạn", "help", "hỗ trợ", "bắt đầu"]:
+        return ""
+        
+    # 2. Nếu có phần "cho yêu cầu sau: ", lấy phần phía sau
+    if "cho yêu cầu sau:" in query:
+        term = query.split("cho yêu cầu sau:")[1].strip()
+        return term
+        
+    # 3. Loại bỏ các từ khóa tag bot, lệnh slash và từ khóa hành động chung chung
+    term = re.sub(r'<@.*?>', '', query) # Remove slack mentions
+    term = re.sub(r'^/?(usecase|testcase|srs|find|search|lookup|show|cần|hỏi|về|chi tiết đặc tả kịch bản test uat cho yêu cầu sau|đặc tả|kịch bản test)\b', '', term, flags=re.IGNORECASE)
+    term = term.strip()
+    return term
 
 async def handle_query_and_respond(query, history, channel_id, target_thread_ts, client, say):
     print(f"💬 Bắt đầu xử lý truy vấn: '{query}' (Thread: {target_thread_ts})")
@@ -772,8 +789,23 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
             except Exception as copy_ex:
                 print(f"❌ Lỗi khi lưu bản sao file Excel vào {dest_path}: {copy_ex}")
             
+        # Tự động tìm kiếm ClickUp task liên quan dựa trên query
+        clickup_section = ""
+        try:
+            search_term = extract_clickup_search_term(query)
+            if search_term and len(search_term) >= 3:
+                clickup_res = search_clickup_tasks(search_term)
+                if clickup_res and "Lỗi" not in clickup_res and "Không tìm thấy" not in clickup_res:
+                    # Bóc tách danh sách task
+                    lines = clickup_res.split("\n")
+                    task_lines = [l for l in lines if l.strip().startswith("-")]
+                    if task_lines:
+                        clickup_section = f"\n\n---\n*Các công việc liên quan trên ClickUp:*\n" + "\n".join(task_lines)
+        except Exception as e:
+            print(f"❌ Lỗi khi tự động tìm kiếm ClickUp: {e}")
+
         # Gửi câu trả lời bằng văn bản trước
-        slack_text = markdown_to_slack_links(response.text)
+        slack_text = markdown_to_slack_links(response.text + clickup_section)
         await say(slack_text, thread_ts=target_thread_ts)
         print("✅ Đã phản hồi văn bản lên Slack thành công!")
         
