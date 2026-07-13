@@ -89,10 +89,12 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 * **Quy tắc nghiệp vụ:** [Mô tả các công thức tính toán, điều kiện kích hoạt hoặc logic ràng buộc]
 
 ### 🧪 Kịch bản Kiểm thử & Điều kiện biên
-* **Bảng kịch bản UAT (Bắt buộc phải tạo bảng có đủ 5 cột dưới đây, KHÔNG ĐƯỢC tự ý lược bỏ bất kỳ cột nào, kể cả cột Dữ liệu test):**
+* **Bảng kịch bản UAT (Bắt buộc phải bọc bảng Markdown có đủ 5 cột trong khối code triple-backtick ``` để hiển thị căn lề đều trên Slack và dễ dàng sao chép vào Excel):**
+```text
 | Sub Module | Mô tả kịch bản | Bước thực hiện | Kết quả mong đợi | Dữ liệu test |
 | :--- | :--- | :--- | :--- | :--- |
 | [Tên Sub Module, ví dụ: 10.2. Quản lý truy thu/truy lĩnh] | [Mô tả kịch bản test] | [Các bước thực hiện chi tiết, xuống dòng bằng dấu <br>] | [Kết quả mong đợi tương ứng] | [Dữ liệu test mẫu nếu có, nếu không có bắt buộc ghi '-' hoặc 'N/A'] |
+```
 
 * **Trường hợp biên:** [Nêu ra các tình huống đặc biệt cần lưu ý như dữ liệu rỗng, sai định dạng, sai trạng thái]
 
