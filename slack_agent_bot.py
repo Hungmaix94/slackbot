@@ -170,8 +170,14 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 * **Luồng xử lý:** [Mô tả các bước thực hiện nghiệp vụ liên quan]
 * **Quy tắc nghiệp vụ:** [Mô tả các công thức tính toán, điều kiện kích hoạt hoặc logic ràng buộc]
 
-### 🧪 Kịch bản Kiểm thử & Điều kiện biên
-Vì Slack không hỗ trợ hiển thị bảng biểu đồ họa trực tiếp, bạn BẮT BUỘC phải trình bày kịch bản kiểm thử theo cả 2 định dạng dưới đây:
+### 🧪 Kịch bản Kiểm thử & Điều kiện biên (Theo tiêu chuẩn qa-test-planner)
+BẮT BUỘC phải sinh kịch bản kiểm thử bao phủ đầy đủ các nhóm kịch bản sau:
+- **Kịch bản tích cực (Positive Cases):** Luồng xử lý thành công thông thường.
+- **Kịch bản tiêu cực (Negative Cases):** Nhập sai định dạng, sai trạng thái, vi phạm điều kiện logic.
+- **Kịch bản giao diện & trải nghiệm (UI/UX Cases):** Hiển thị danh sách, căn lề, màu sắc thay đổi khi tương tác, responsive.
+- **Kịch bản giá trị biên (Boundary Cases):** Số tiền tối đa/tối thiểu, phân trang, điều kiện biên của thời gian/trạng thái.
+
+Định dạng trình bày bắt buộc dưới cả 2 dạng:
 
 1. **Dạng danh sách (Dễ đọc trực quan trên Slack):**
 * **[Tên Sub Module] - [Mô tả kịch bản]**
@@ -179,7 +185,7 @@ Vì Slack không hỗ trợ hiển thị bảng biểu đồ họa trực tiếp
   * *Kết quả mong đợi:* [Kết quả mong đợi]
   * *Dữ liệu test:* [Dữ liệu test mẫu hoặc 'N/A']
 
-2. **Dạng bảng UAT 5 cột (Bắt buộc bọc trong khối code triple-backtick ```text để người dùng copy-paste trực tiếp vào Excel):**
+2. **Dạng bảng UAT 5 cột (Bắt buộc bọc trong khối code triple-backtick ```text để copy-paste trực tiếp vào Excel):**
 ```text
 | Sub Module | Mô tả kịch bản | Bước thực hiện | Kết quả mong đợi | Dữ liệu test |
 | :--- | :--- | :--- | :--- | :--- |
