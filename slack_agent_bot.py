@@ -15,7 +15,20 @@ genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 import requests
 
 # Đường dẫn thư mục tài liệu SRS
-SRS_DIR = os.environ.get("SRS_DIR", "/home/phamhung/Work/MVL/web/docs/srs/docs")
+SRS_DIR = os.environ.get("SRS_DIR")
+if not SRS_DIR:
+    possible_paths = [
+        "/home/ubuntu/Glinteco/slackbot/docs",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../docs"),
+        "/home/phamhung/Work/MVL/web/docs/srs/docs"
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            SRS_DIR = path
+            break
+    if not SRS_DIR:
+        SRS_DIR = "/home/phamhung/Work/MVL/web/docs/srs/docs"
 
 def call_clickup_mcp(tool_name, arguments):
     import subprocess
