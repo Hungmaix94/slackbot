@@ -119,30 +119,69 @@ def create_excel_from_rows(rows, filepath):
         bottom=Side(style='thin', color='D9D9D9')
     )
     
-    for r_idx, row in enumerate(rows, 1):
-        for c_idx, val in enumerate(row, 1):
+    # Định nghĩa Header chuẩn của UAT
+    headers = [
+        'Sub Module', 'ID', 'Mô tả', 'Bước thực hiện', 
+        'Dữ liệu test', 'Kết quả mong đợi', 'Trạng thái(Web)', 
+        'Kết quả thực tế', 'Ghi chú'
+    ]
+    
+    # Ghi Header
+    for c_idx, h_text in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=c_idx, value=h_text)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = thin_border
+        
+    # Ghi dữ liệu UAT
+    # Bỏ qua dòng tiêu đề của Markdown (rows[0])
+    data_rows = rows[1:]
+    
+    for r_idx, row in enumerate(data_rows, 2): # Hàng 2 trong Excel trở đi
+        while len(row) < 5:
+            row.append("")
+            
+        md_sub_module = row[0]
+        md_mota = row[1]
+        md_steps = row[2]
+        md_expected = row[3]
+        md_test_data = row[4]
+        
+        # Ánh xạ 9 cột Excel
+        excel_row_vals = [
+            md_sub_module,                             # Col A: Sub Module
+            f'=IF(G{r_idx}="","",COUNTA($G$2:G{r_idx}))', # Col B: ID (Công thức Excel)
+            md_mota,                                   # Col C: Mô tả
+            md_steps,                                  # Col D: Bước thực hiện
+            md_test_data,                              # Col E: Dữ liệu test
+            md_expected,                               # Col F: Kết quả mong đợi
+            "Pass",                                    # Col G: Trạng thái(Web)
+            "",                                        # Col H: Kết quả thực tế
+            ""                                         # Col I: Ghi chú
+        ]
+        
+        for c_idx, val in enumerate(excel_row_vals, 1):
             cleaned_val = str(val).replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
             cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
+            cell.font = data_font
             
-            if r_idx == 1:
-                cell.font = header_font
-                cell.fill = header_fill
-                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            # Căn lề các cột
+            if c_idx in [1, 2, 5, 7]: # Sub Module, ID, Dữ liệu test, Trạng thái(Web) căn giữa
+                cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
             else:
-                cell.font = data_font
-                if c_idx in [1, 5]: # Cột Sub Module và Dữ liệu test căn giữa
-                    cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
-                else:
-                    cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+                
             cell.border = thin_border
             
-    # Tự động căn chỉnh độ rộng cột
+    # Tự động căn chỉnh độ rộng cột (bỏ qua độ dài công thức ID)
     for col in ws.columns:
         max_len = 0
         col_letter = col[0].column_letter
         for cell in col:
             if cell.value:
-                cell_lines = str(cell.value).split('\n')
+                val_str = "1" if str(cell.value).startswith("=") else str(cell.value)
+                cell_lines = val_str.split('\n')
                 for line in cell_lines:
                     if len(line) > max_len:
                         max_len = len(line)
@@ -185,11 +224,11 @@ BẮT BUỘC phải sinh kịch bản kiểm thử bao phủ đầy đủ các n
   * *Kết quả mong đợi:* [Kết quả mong đợi]
   * *Dữ liệu test:* [Dữ liệu test mẫu hoặc 'N/A']
 
-2. **Dạng bảng UAT 5 cột (Bắt buộc bọc trong khối code triple-backtick ```text để copy-paste trực tiếp vào Excel):**
+2. **Dạng bảng UAT 5 cột (Bắt buộc bọc trong khối code triple-backtick ```text để hệ thống tự tạo file Excel và người dùng dễ dàng copy-paste):**
 ```text
-| Sub Module | Mô tả kịch bản | Bước thực hiện | Kết quả mong đợi | Dữ liệu test |
+| Sub Module | Mô tả | Bước thực hiện | Kết quả mong đợi | Dữ liệu test |
 | :--- | :--- | :--- | :--- | :--- |
-| [Tên Sub Module] | [Mô tả kịch bản] | [Các bước thực hiện, ngăn cách bằng dấu <br>] | [Kết quả mong đợi] | [Dữ liệu test mẫu hoặc 'N/A'/''] |
+| [Tên Sub Module, ví dụ: 10.2. Quản lý truy thu/truy lĩnh] | [Mô tả kịch bản test] | [Các bước thực hiện từng bước cực kỳ chi tiết, hành động click chuột, chọn giá trị, điền ô nhập liệu, xuống dòng bằng <br>] | [Kết quả mong đợi chi tiết] | [Dữ liệu test mẫu hoặc 'N/A'] |
 ```
 
 * **Trường hợp biên:** [Nêu ra các tình huống đặc biệt cần lưu ý như dữ liệu rỗng, sai định dạng, sai trạng thái]
