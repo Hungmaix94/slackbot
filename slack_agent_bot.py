@@ -195,29 +195,62 @@ def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
     return "\n".join(result)
 
 
+def fetch_clickup_task_direct(task_id: str) -> dict:
+    token = os.environ.get("CLICKUP_TOKEN", "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS")
+    headers = {"Authorization": token}
+    url = f"https://api.clickup.com/api/v2/task/{task_id}"
+    try:
+        resp = requests.get(url, headers=headers, timeout=5)
+        if resp.status_code == 200:
+            return resp.json()
+    except Exception:
+        pass
+    return None
+
+
 def get_clickup_task(task_id: str) -> str:
     """
     Lấy thông tin chi tiết của một task hoặc bug cụ thể trên ClickUp theo ID của task.
     
     Args:
-        task_id: ID của task ClickUp (ví dụ: '86exxz2xr').
+        task_id: ID hoặc URL của task ClickUp (ví dụ: '86exxz2xr').
     """
-    res = call_clickup_mcp("clickup_get_task", {
-        "task_id": task_id,
-        "include_markdown_description": True
-    })
+    import concurrent.futures
     
-    if isinstance(res, dict) and "error" in res:
-        return f"Lỗi khi lấy thông tin task {task_id} từ ClickUp: {res['error']}"
+    # Làm sạch và trích xuất mã task ID dạng 86xxxxxxx
+    task_id_cleaned = task_id.strip()
+    match = re.search(r'86[a-zA-Z0-9]{6,8}', task_id_cleaned)
+    if match:
+        task_id_cleaned = match.group(0)
         
-    if not isinstance(res, dict) or "id" not in res:
-        return f"Không tìm thấy thông tin chi tiết cho task {task_id} trên ClickUp."
+    print(f"🔍 Đang truy vấn chi tiết ClickUp Task ID: '{task_id_cleaned}' (từ gốc: '{task_id}')")
+    
+    # Thử lấy trực tiếp bằng ID gốc trước
+    task_data = fetch_clickup_task_direct(task_id_cleaned)
+    
+    # Nếu không tìm thấy, và ID có độ dài 8 ký tự, bắt đầu bằng '86', tự động khôi phục ký tự thứ 9 bị cắt cụt
+    if not task_data and len(task_id_cleaned) == 8 and task_id_cleaned.startswith("86"):
+        print(f"⚠️ Task ID '{task_id_cleaned}' có thể bị cắt cụt (8 ký tự). Bắt đầu đoán ký tự thứ 9...")
+        chars = "abcdefghijklmnopqrstuvwxyz0123456789"
+        candidates = [task_id_cleaned + c for c in chars]
         
-    t_id = res.get("id")
-    t_name = res.get("name", "N/A")
-    t_desc = res.get("description", "")
-    t_status = res.get("status", {}).get("status", "N/A")
-    t_url = res.get("url", "")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            future_to_id = {executor.submit(fetch_clickup_task_direct, cid): cid for cid in candidates}
+            for future in concurrent.futures.as_completed(future_to_id):
+                res = future.result()
+                if res and "id" in res:
+                    task_data = res
+                    print(f"🎉 Khôi phục thành công ClickUp Task ID thực tế: '{res.get('id')}'")
+                    break
+                    
+    if not task_data:
+        return f"Thông tin chi tiết về task có mã {task_id_cleaned} hiện không thể truy xuất từ hệ thống ClickUp."
+        
+    t_id = task_data.get("id")
+    t_name = task_data.get("name", "N/A")
+    t_desc = task_data.get("description", "")
+    t_status = task_data.get("status", {}).get("status", "N/A")
+    t_url = task_data.get("url", "")
     
     result = []
     result.append(f"Task ID: [{t_id}]")
