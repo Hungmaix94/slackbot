@@ -71,6 +71,25 @@ def read_srs_file(filepath: str) -> str:
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 
+def slugify_vietnamese(text: str) -> str:
+    """
+    Chuyển đổi tiêu đề tiếng Việt thành dạng slug viết thường không dấu phục vụ đặt tên file.
+    """
+    import unicodedata
+    import re
+    # Trích xuất phần nghiệp vụ thực tế (bỏ các cụm từ mồi prompt)
+    text = re.sub(r"(?i)^/?(usecase|testcase)\s*", "", text).strip()
+    text = re.sub(r"(?i)cho yêu cầu sau:\s*", "", text).strip()
+    text = text.replace("_", "").replace("*", "")
+    
+    # Loại bỏ dấu tiếng Việt
+    text = unicodedata.normalize('NFKD', text).encode('ascii', 'ignore').decode('utf-8')
+    text = text.lower()
+    # Chỉ giữ lại chữ cái, số, khoảng trắng và gạch ngang
+    text = re.sub(r'[^a-z0-9\s-]', '', text)
+    text = re.sub(r'[\s-]+', '_', text).strip('_')
+    return text or "export"
+
 def parse_all_markdown_tables(text):
     lines = text.split("\n")
     tables = []
@@ -548,6 +567,22 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
             os.close(fd)
             create_excel_from_tables(tables, temp_path, query)
             excel_file = temp_path
+            
+            # Cất bản sao file Excel vào thư mục cục bộ (SRS_DIR/usecase hoặc SRS_DIR/testcase)
+            folder_name = "usecase" if is_usecase else "testcase"
+            dest_dir = os.path.join(SRS_DIR, folder_name)
+            os.makedirs(dest_dir, exist_ok=True)
+            
+            slug_name = slugify_vietnamese(query)
+            dest_filename = f"{slug_name}.xlsx"
+            dest_path = os.path.join(dest_dir, dest_filename)
+            
+            import shutil
+            try:
+                shutil.copy2(temp_path, dest_path)
+                print(f"💾 Đã lưu bản sao file Excel vào: {dest_path}")
+            except Exception as copy_ex:
+                print(f"❌ Lỗi khi lưu bản sao file Excel vào {dest_path}: {copy_ex}")
             
         # Gửi câu trả lời bằng văn bản trước
         await say(response.text, thread_ts=target_thread_ts)
