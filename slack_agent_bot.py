@@ -156,9 +156,11 @@ def create_excel_from_tables(tables, filepath, query=""):
     has_sheets = False
     
     # Định nghĩa font và viền chuẩn cho UAT
-    header_font = Font(name="Times New Roman", size=14, bold=True, color="000000")
+    header_font = Font(name="Times New Roman", size=14, bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="93C47D", end_color="93C47D", fill_type="solid") # Xanh pastel
-    data_font = Font(name="Times New Roman", size=14, bold=False, color="000000")
+    group_font = Font(name="Times New Roman", size=14, bold=True, color="FFFFFF")
+    group_fill = PatternFill(start_color="C9DAF8", end_color="C9DAF8", fill_type="solid") # Xanh dương nhạt pastel
+    data_font = Font(name="Arial", size=10, bold=False, color="000000")
     
     thin_border = Border(
         left=Side(style='thin', color='000000'),
@@ -197,20 +199,18 @@ def create_excel_from_tables(tables, filepath, query=""):
             ws = wb.create_sheet(title="Kịch bản UAT")
             ws.views.sheetView[0].showGridLines = True
             
-            # Ghi tiêu đề lớn ở Row 1
-            ws.cell(row=1, column=1, value="KỊCH BẢN KIỂM THỬ UAT (USER ACCEPTANCE TEST)").font = Font(name="Times New Roman", size=16, bold=True)
-            
-            # Ghi header của bảng ở Row 2
-            custom_headers = ["Sub Module", "ID", "Mô tả kịch bản test", "Bước thực hiện", "Dữ liệu test", "Kết quả mong đợi", "Trạng thái(Web)", "Kết quả thực tế", "Ghi chú"]
+            # Ghi trực tiếp header của bảng ở Row 1
+            custom_headers = ["Sub Module", "ID", "Mô tả", "Bước thực hiện", "Dữ liệu test", "Kết quả mong đợi", "Trạng thái (web)", "Kết quả thực tế", "Ghi chú"]
             for c_idx, h_text in enumerate(custom_headers, 1):
-                cell = ws.cell(row=2, column=c_idx, value=h_text)
+                cell = ws.cell(row=1, column=c_idx, value=h_text)
                 cell.font = header_font
                 cell.fill = header_fill
                 cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 cell.border = thin_border
             
-            # Ghi dữ liệu từ Row 3
-            for r_idx, row in enumerate(rows, 3):
+            # Ghi dữ liệu từ Row 2
+            prev_group = None
+            for r_idx, row in enumerate(rows, 2):
                 while len(row) < 5:
                     row.append("")
                 
@@ -220,9 +220,17 @@ def create_excel_from_tables(tables, filepath, query=""):
                 md_expected = row[3]
                 md_test_data = row[4]
                 
+                current_group = str(md_sub_module).strip() if md_sub_module else ""
+                is_group_change = (current_group != prev_group)
+                if is_group_change:
+                    prev_group = current_group
+                    cell_sub_module_val = md_sub_module
+                else:
+                    cell_sub_module_val = ""
+                
                 excel_row_vals = [
-                    md_sub_module,                             
-                    f'=IF(G{r_idx}="","",COUNTA($G$3:G{r_idx}))', 
+                    cell_sub_module_val,                             
+                    f'=IF(G{r_idx}="","",COUNTA($G$2:G{r_idx}))', 
                     md_mota,                                   
                     md_steps,                                  
                     md_test_data,                              
@@ -235,25 +243,33 @@ def create_excel_from_tables(tables, filepath, query=""):
                 for c_idx, val in enumerate(excel_row_vals, 1):
                     cleaned_val = str(val).replace("<br>", "\n").replace("<br/>", "\n").replace("<br />", "\n")
                     cell = ws.cell(row=r_idx, column=c_idx, value=cleaned_val)
-                    cell.font = data_font
-                    if c_idx in [1, 2, 5, 7]:
-                        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+                    
+                    if is_group_change:
+                        cell.font = group_font
+                        cell.fill = group_fill
                     else:
-                        cell.alignment = Alignment(horizontal="left", vertical="center", wrap_text=True)
+                        cell.font = data_font
+                        
+                    if c_idx in [1, 2, 7, 8]:
+                        cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
+                    else:
+                        cell.alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
                     cell.border = thin_border
             
-            # Căn chỉnh cột
-            for col in ws.columns:
-                max_len = 0
-                col_letter = col[0].column_letter
-                for cell in col:
-                    if cell.value:
-                        val_str = "1" if str(cell.value).startswith("=") else str(cell.value)
-                        cell_lines = val_str.split('\n')
-                        for line in cell_lines:
-                            if len(line) > max_len:
-                                max_len = len(line)
-                ws.column_dimensions[col_letter].width = min(max(max_len + 3, 12), 45)
+            # Cấu hình chiều rộng cột tĩnh tối ưu cho UAT giống như mẫu dự án
+            col_widths = {
+                'A': 25, # Sub Module
+                'B': 8,  # ID
+                'C': 35, # Mô tả
+                'D': 40, # Bước thực hiện
+                'E': 25, # Dữ liệu test
+                'F': 40, # Kết quả mong đợi
+                'G': 15, # Trạng thái (web)
+                'H': 15, # Kết quả thực tế
+                'I': 20  # Ghi chú
+            }
+            for col_letter, width in col_widths.items():
+                ws.column_dimensions[col_letter].width = width
             has_sheets = True
             
         elif len(headers) == 6:
