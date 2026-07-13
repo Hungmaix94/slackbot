@@ -137,7 +137,7 @@ def search_clickup_tasks(query: str) -> str:
         t_name = t.get("name")
         t_status = t.get("status", {}).get("status", "N/A")
         t_url = t.get("url")
-        result.append(f"- <{t_url}|[{t_id}] {t_name}> - Trạng thái: {t_status}")
+        result.append(f"- [[{t_id}] {t_name}]({t_url}) - Trạng thái: {t_status}")
         
     return "\n".join(result)
 
@@ -695,6 +695,25 @@ model_qa = genai.GenerativeModel(
 # Khởi tạo Async Slack App
 app = AsyncApp(token=os.environ.get("SLACK_BOT_TOKEN"))
 
+def markdown_to_slack_links(text: str) -> str:
+    """
+    Chuyển đổi các liên kết dạng Markdown [Text](URL) thành định dạng Slack mrkdwn <URL|Text>,
+    và tự động chuyển đổi mã task ClickUp (ví dụ [86ey96jcp] hoặc 86ey96jcp) chưa có link thành link click được.
+    """
+    # 1. Chuyển đổi [Text](URL) thành <URL|Text>
+    pattern = r'\[([^\]]+)\]\(([^)]+)\)'
+    text = re.sub(pattern, r'<\2|\1>', text)
+    
+    # 2. Chuyển đổi [86eyXXXXX] chưa được liên kết thành link ClickUp dạng <URL|[86eyXXXXX]>
+    bracket_pattern = r'(?<!\|)(?<!/)(?<!\w)\[(86[a-zA-Z0-9]{5,10})\]'
+    text = re.sub(bracket_pattern, r'<https://app.clickup.com/t/\1|[\1]>', text)
+    
+    # 3. Chuyển đổi mã 86eyXXXXX đứng độc lập chưa được liên kết thành link ClickUp
+    raw_pattern = r'(?<!/)(?<!\|)(?<!\[)\b(86[a-zA-Z0-9]{7,10})\b'
+    text = re.sub(raw_pattern, r'<https://app.clickup.com/t/\1|\1>', text)
+    
+    return text
+
 async def handle_query_and_respond(query, history, channel_id, target_thread_ts, client, say):
     print(f"💬 Bắt đầu xử lý truy vấn: '{query}' (Thread: {target_thread_ts})")
     try:
@@ -754,7 +773,8 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
                 print(f"❌ Lỗi khi lưu bản sao file Excel vào {dest_path}: {copy_ex}")
             
         # Gửi câu trả lời bằng văn bản trước
-        await say(response.text, thread_ts=target_thread_ts)
+        slack_text = markdown_to_slack_links(response.text)
+        await say(slack_text, thread_ts=target_thread_ts)
         print("✅ Đã phản hồi văn bản lên Slack thành công!")
         
         # Nếu có file Excel, tải file đó lên Slack
