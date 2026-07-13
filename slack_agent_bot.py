@@ -480,6 +480,14 @@ async def handle_mention(event, say, client):
     if bot_user_id:
         query = re.sub(r"<@.*?>", "", query).strip()
         
+    # Tự động nhận diện lệnh viết dưới dạng text trong mention
+    if query.startswith("/usecase") or query.lower().startswith("usecase"):
+        sub_query = re.sub(r"^/?usecase\s*", "", query, flags=re.IGNORECASE).strip()
+        query = f"Hãy sinh danh sách usecase từ srs cho yêu cầu sau: {sub_query}"
+    elif query.startswith("/testcase") or query.lower().startswith("testcase"):
+        sub_query = re.sub(r"^/?testcase\s*", "", query, flags=re.IGNORECASE).strip()
+        query = f"Hãy sinh chi tiết đặc tả kịch bản test UAT cho yêu cầu sau: {sub_query}"
+        
     if not query:
         await say("👋 Xin chào! Tôi là trợ lý AI chuyên giải đáp tài liệu SRS của dự án MaiVietLand. Hãy nhập câu hỏi sau khi tag tôi nhé! Ví dụ: `@SRS Assist luồng booking`", thread_ts=target_thread_ts)
         return
