@@ -304,6 +304,48 @@ def fetch_slack_thread_messages_sync(channel_id: str, thread_ts: str) -> tuple:
         print(f"❌ Ngoại lệ khi lấy tin nhắn thread: {e}")
         return [], f"Ngoại lệ khi kết nối Slack API: {str(e)}"
 
+def download_slack_file(url_private: str) -> bytes:
+    """
+    Tải tệp từ Slack bằng SLACK_BOT_TOKEN.
+    """
+    token = os.environ.get("SLACK_BOT_TOKEN")
+    if not token:
+        print("❌ Lỗi: Thiếu SLACK_BOT_TOKEN để tải file.")
+        return b""
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        response = requests.get(url_private, headers=headers)
+        if response.status_code == 200:
+            return response.content
+        else:
+            print(f"❌ Lỗi tải file từ Slack: Status {response.status_code}")
+            return b""
+    except Exception as e:
+        print(f"❌ Ngoại lệ khi tải file từ Slack: {e}")
+        return b""
+
+
+def upload_attachment_to_clickup_task(task_id: str, file_name: str, file_content: bytes, content_type: str = None) -> dict:
+    """
+    Tải lên file đính kèm lên một ClickUp task qua ClickUp API.
+    """
+    token = os.environ.get("CLICKUP_API_TOKEN") or os.environ.get("CLICKUP_TOKEN") or "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS"
+    url = f"https://api.clickup.com/api/v2/task/{task_id}/attachment"
+    headers = {
+        "Authorization": token
+    }
+    files = {
+        "attachment": (file_name, file_content, content_type)
+    }
+    try:
+        response = requests.post(url, headers=headers, files=files)
+        res_json = response.json()
+        return res_json
+    except Exception as e:
+        print(f"❌ Lỗi khi tải file lên ClickUp: {e}")
+        return {"error": str(e)}
+
 
 def load_clickup_templates() -> str:
     """
@@ -445,7 +487,38 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
         t_url = res.get("url", "")
         
     if t_id:
-        return f"🎉 Đã tạo thành công task trên ClickUp từ thread Slack này!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {task_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>"
+        # Tải và đính kèm các tệp/hình ảnh từ Slack thread lên ClickUp task mới tạo
+        uploaded_files_count = 0
+        failed_files_count = 0
+        for msg in messages:
+            if "files" in msg:
+                for file_info in msg["files"]:
+                    file_url = file_info.get("url_private")
+                    file_name = file_info.get("name")
+                    mimetype = file_info.get("mimetype")
+                    if file_url and file_name:
+                        print(f"📥 Đang tải file từ Slack: {file_name} ({file_url})")
+                        file_data = download_slack_file(file_url)
+                        if file_data:
+                            print(f"📤 Đang upload file lên ClickUp task {t_id}: {file_name}")
+                            upload_res = upload_attachment_to_clickup_task(t_id, file_name, file_data, mimetype)
+                            if isinstance(upload_res, dict) and "error" not in upload_res:
+                                uploaded_files_count += 1
+                            else:
+                                print(f"❌ Lỗi upload file: {upload_res}")
+                                failed_files_count += 1
+                        else:
+                            failed_files_count += 1
+
+        attachment_status = ""
+        if uploaded_files_count > 0:
+            attachment_status = f"\n- **Đính kèm:** Đã đính kèm thành công {uploaded_files_count} hình ảnh/tệp từ Slack."
+            if failed_files_count > 0:
+                attachment_status += f" (Thất bại {failed_files_count} tệp)"
+        elif failed_files_count > 0:
+            attachment_status = f"\n- **Đính kèm:** ⚠️ Thất bại khi đính kèm {failed_files_count} hình ảnh/tệp từ Slack."
+
+        return f"🎉 Đã tạo thành công task trên ClickUp từ thread Slack này!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {task_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>{attachment_status}"
     else:
         return f"Tạo task thành công nhưng không lấy được ID. Phản hồi từ ClickUp: {str(res)}"
 
