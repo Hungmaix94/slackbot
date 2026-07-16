@@ -276,14 +276,15 @@ def get_clickup_task(task_id: str) -> str:
     return "\n".join(result)
 
 
-def fetch_slack_thread_messages_sync(channel_id: str, thread_ts: str) -> list:
+def fetch_slack_thread_messages_sync(channel_id: str, thread_ts: str) -> tuple:
     """
     Lấy danh sách tin nhắn từ một thread Slack một cách đồng bộ.
+    Trả về: (list_messages, error_message)
     """
     token = os.environ.get("SLACK_BOT_TOKEN")
     if not token:
         print("❌ Lỗi: Thiếu SLACK_BOT_TOKEN")
-        return []
+        return [], "Thiếu cấu hình SLACK_BOT_TOKEN."
     
     headers = {"Authorization": f"Bearer {token}"}
     url = f"https://slack.com/api/conversations.replies?channel={channel_id}&ts={thread_ts}"
@@ -291,13 +292,17 @@ def fetch_slack_thread_messages_sync(channel_id: str, thread_ts: str) -> list:
         response = requests.get(url, headers=headers)
         res_json = response.json()
         if res_json.get("ok"):
-            return res_json.get("messages", [])
+            return res_json.get("messages", []), None
         else:
-            print(f"❌ Lỗi từ Slack API: {res_json.get('error')}")
-            return []
+            err = res_json.get("error")
+            print(f"❌ Lỗi từ Slack API: {err}")
+            if err == "missing_scope":
+                needed = res_json.get("needed", "channels:history,groups:history,im:history,mpim:history")
+                return [], f"Thiếu quyền truy cập lịch sử tin nhắn Slack (lỗi `{err}`). Vui lòng bổ sung các Scope sau trong trang cấu hình Slack App (OAuth & Permissions > Bot Token Scopes):\n`{needed}`\nSau đó bấm **Reinstall to Workspace** để cập nhật."
+            return [], f"Lỗi Slack API: `{err}`"
     except Exception as e:
         print(f"❌ Ngoại lệ khi lấy tin nhắn thread: {e}")
-        return []
+        return [], f"Ngoại lệ khi kết nối Slack API: {str(e)}"
 
 
 def load_clickup_templates() -> str:
@@ -410,9 +415,11 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
             print(f"⚠️ Task đã tồn tại: {t_id} ({t_name})")
             return f"⚠️ Task này đã được tạo trước đó trên ClickUp từ thread Slack này rồi!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {t_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>"
 
-    messages = fetch_slack_thread_messages_sync(channel_id, thread_ts)
+    messages, err_msg = fetch_slack_thread_messages_sync(channel_id, thread_ts)
+    if err_msg:
+        return f"⚠️ Không thể lấy nội dung tin nhắn từ thread:\n{err_msg}"
     if not messages:
-        return "Không thể lấy nội dung tin nhắn từ thread này hoặc thread không tồn tại."
+        return "⚠️ Không thể lấy nội dung tin nhắn từ thread này (thread trống hoặc không tồn tại)."
         
     task_name, task_desc = generate_clickup_task_details_gemini(messages)
     
