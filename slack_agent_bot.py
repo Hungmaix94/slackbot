@@ -420,22 +420,21 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json ha
 
 def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
     """
-    Tạo một task trên ClickUp từ nội dung thảo luận trong một thread Slack.
-    Sử dụng công cụ này khi người dùng yêu cầu tạo task ClickUp từ thread hiện tại.
+    Tạo hoặc cập nhật một task trên ClickUp từ nội dung thảo luận trong một thread Slack.
+    Sử dụng công cụ này khi người dùng yêu cầu tạo/cập nhật task ClickUp từ thread hiện tại.
     Thông tin channel_id và thread_ts có thể lấy từ [Slack Context] ở cuối câu hỏi của người dùng.
     
     Args:
         channel_id: ID của kênh Slack (ví dụ: 'C01234567').
         thread_ts: ID timestamp của thread Slack (ví dụ: '1234567890.123456').
     """
-    print(f"➕ Bắt đầu tạo ClickUp Task từ thread {thread_ts} trong kênh {channel_id}")
+    print(f"➕ Bắt đầu xử lý ClickUp Task từ thread {thread_ts} trong kênh {channel_id}")
     
     if not channel_id or not thread_ts:
         return "Lỗi: Thiếu thông tin channel_id hoặc thread_ts."
         
-    # Tránh tạo trùng bằng cách quét các task hiện tại trên ClickUp
     list_id = os.environ.get("CLICKUP_LIST_ID", "901818745715")
-    print(f"🔍 Đang kiểm tra xem thread {thread_ts} đã được tạo task trên ClickUp chưa...")
+    print(f"🔍 Đang quét danh sách task trên ClickUp để kiểm tra trùng...")
     existing_res = call_clickup_mcp("clickup_get_tasks", {
         "list_id": list_id,
         "include_markdown_description": True,
@@ -448,46 +447,41 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
     elif isinstance(existing_res, list):
         existing_tasks = existing_res
         
+    existing_task = None
     for task in existing_tasks:
         desc = task.get("description") or task.get("markdown_description") or ""
-        if f"thread_ts={thread_ts}" in desc:
-            t_id = task.get("id")
-            t_name = task.get("name")
-            t_url = task.get("url")
-            print(f"⚠️ Task đã tồn tại: {t_id} ({t_name})")
-            return f"⚠️ Task này đã được tạo trước đó trên ClickUp từ thread Slack này rồi!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {t_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>"
-
+        if f"thread_ts={thread_ts}" in desc or thread_ts in desc:
+            existing_task = task
+            break
+            
+    # Lấy toàn bộ tin nhắn từ Slack thread
     messages, err_msg = fetch_slack_thread_messages_sync(channel_id, thread_ts)
     if err_msg:
         return f"⚠️ Không thể lấy nội dung tin nhắn từ thread:\n{err_msg}"
     if not messages:
         return "⚠️ Không thể lấy nội dung tin nhắn từ thread này (thread trống hoặc không tồn tại)."
         
+    # Sinh thông tin task bằng Gemini
     task_name, task_desc = generate_clickup_task_details_gemini(messages)
-    
     slack_link = f"https://slack.com/app_redirect?channel={channel_id}&thread_ts={thread_ts}"
-    task_desc += f"\n\n---\n🔗 **Link thảo luận trên Slack:** [Xem thread trên Slack]({slack_link})"
+    task_desc += f"\n\n---\n🔗 **Link thảo luận trên Slack:** [Xem thread trên Slack]({slack_link})\n[Slack Thread Metadata: channel_id={channel_id} thread_ts={thread_ts}]"
     
-    arguments = {
-        "list_id": list_id,
-        "name": task_name,
-        "markdown_description": task_desc
-    }
-    
-    print(f"🚀 Gọi ClickUp MCP tạo task với tên: '{task_name}'")
-    res = call_clickup_mcp("clickup_create_task", arguments)
-    
-    if isinstance(res, dict) and "error" in res:
-        return f"Lỗi khi tạo task trên ClickUp: {res['error']}"
+    if existing_task:
+        t_id = existing_task.get("id")
+        t_url = existing_task.get("url")
+        print(f"🔄 Phát hiện task đã tồn tại: {t_id} ({existing_task.get('name')}). Đang tiến hành cập nhật...")
         
-    t_id = ""
-    t_url = ""
-    if isinstance(res, dict):
-        t_id = res.get("id", "")
-        t_url = res.get("url", "")
+        # Cập nhật task trên ClickUp
+        update_res = call_clickup_mcp("clickup_update_task", {
+            "task_id": t_id,
+            "name": task_name,
+            "markdown_description": task_desc
+        })
         
-    if t_id:
-        # Tải và đính kèm các tệp/hình ảnh từ Slack thread lên ClickUp task mới tạo
+        if isinstance(update_res, dict) and "error" in update_res:
+            return f"Lỗi khi cập nhật task trên ClickUp: {update_res['error']}"
+            
+        # Đính kèm hình ảnh/tệp mới từ Slack
         uploaded_files_count = 0
         failed_files_count = 0
         for msg in messages:
@@ -497,7 +491,7 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
                     file_name = file_info.get("name")
                     mimetype = file_info.get("mimetype")
                     if file_url and file_name:
-                        print(f"📥 Đang tải file từ Slack: {file_name} ({file_url})")
+                        print(f"📥 Đang tải file cập nhật từ Slack: {file_name}")
                         file_data = download_slack_file(file_url)
                         if file_data:
                             print(f"📤 Đang upload file lên ClickUp task {t_id}: {file_name}")
@@ -512,15 +506,69 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
 
         attachment_status = ""
         if uploaded_files_count > 0:
-            attachment_status = f"\n- **Đính kèm:** Đã đính kèm thành công {uploaded_files_count} hình ảnh/tệp từ Slack."
+            attachment_status = f"\n- **Đính kèm:** Đã cập nhật thành công {uploaded_files_count} hình ảnh/tệp từ Slack."
             if failed_files_count > 0:
                 attachment_status += f" (Thất bại {failed_files_count} tệp)"
         elif failed_files_count > 0:
             attachment_status = f"\n- **Đính kèm:** ⚠️ Thất bại khi đính kèm {failed_files_count} hình ảnh/tệp từ Slack."
 
-        return f"🎉 Đã tạo thành công task trên ClickUp từ thread Slack này!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {task_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>{attachment_status}"
+        return f"🔄 Đã cập nhật thành công task ClickUp hiện tại từ thread Slack này!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {task_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>{attachment_status}"
+
     else:
-        return f"Tạo task thành công nhưng không lấy được ID. Phản hồi từ ClickUp: {str(res)}"
+        # Tạo mới task
+        arguments = {
+            "list_id": list_id,
+            "name": task_name,
+            "markdown_description": task_desc
+        }
+        
+        print(f"🚀 Gọi ClickUp MCP tạo task với tên: '{task_name}'")
+        res = call_clickup_mcp("clickup_create_task", arguments)
+        
+        if isinstance(res, dict) and "error" in res:
+            return f"Lỗi khi tạo task trên ClickUp: {res['error']}"
+            
+        t_id = ""
+        t_url = ""
+        if isinstance(res, dict):
+            t_id = res.get("id", "")
+            t_url = res.get("url", "")
+            
+        if t_id:
+            # Tải và đính kèm các tệp/hình ảnh từ Slack thread lên ClickUp task mới tạo
+            uploaded_files_count = 0
+            failed_files_count = 0
+            for msg in messages:
+                if "files" in msg:
+                    for file_info in msg["files"]:
+                        file_url = file_info.get("url_private")
+                        file_name = file_info.get("name")
+                        mimetype = file_info.get("mimetype")
+                        if file_url and file_name:
+                            print(f"📥 Đang tải file từ Slack: {file_name} ({file_url})")
+                            file_data = download_slack_file(file_url)
+                            if file_data:
+                                print(f"📤 Đang upload file lên ClickUp task {t_id}: {file_name}")
+                                upload_res = upload_attachment_to_clickup_task(t_id, file_name, file_data, mimetype)
+                                if isinstance(upload_res, dict) and "error" not in upload_res:
+                                    uploaded_files_count += 1
+                                else:
+                                    print(f"❌ Lỗi upload file: {upload_res}")
+                                    failed_files_count += 1
+                            else:
+                                    failed_files_count += 1
+
+            attachment_status = ""
+            if uploaded_files_count > 0:
+                attachment_status = f"\n- **Đính kèm:** Đã đính kèm thành công {uploaded_files_count} hình ảnh/tệp từ Slack."
+                if failed_files_count > 0:
+                    attachment_status += f" (Thất bại {failed_files_count} tệp)"
+            elif failed_files_count > 0:
+                attachment_status = f"\n- **Đính kèm:** ⚠️ Thất bại khi đính kèm {failed_files_count} hình ảnh/tệp từ Slack."
+
+            return f"🎉 Đã tạo thành công task trên ClickUp từ thread Slack này!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {task_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>{attachment_status}"
+        else:
+            return f"Tạo task thành công nhưng không lấy được ID. Phản hồi từ ClickUp: {str(res)}"
 
 
 def search_srs_files(query: str) -> str:
