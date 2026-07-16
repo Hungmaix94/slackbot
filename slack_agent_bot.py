@@ -276,6 +276,173 @@ def get_clickup_task(task_id: str) -> str:
     return "\n".join(result)
 
 
+def fetch_slack_thread_messages_sync(channel_id: str, thread_ts: str) -> list:
+    """
+    Lấy danh sách tin nhắn từ một thread Slack một cách đồng bộ.
+    """
+    token = os.environ.get("SLACK_BOT_TOKEN")
+    if not token:
+        print("❌ Lỗi: Thiếu SLACK_BOT_TOKEN")
+        return []
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    url = f"https://slack.com/api/conversations.replies?channel={channel_id}&ts={thread_ts}"
+    try:
+        response = requests.get(url, headers=headers)
+        res_json = response.json()
+        if res_json.get("ok"):
+            return res_json.get("messages", [])
+        else:
+            print(f"❌ Lỗi từ Slack API: {res_json.get('error')}")
+            return []
+    except Exception as e:
+        print(f"❌ Ngoại lệ khi lấy tin nhắn thread: {e}")
+        return []
+
+
+def load_clickup_templates() -> str:
+    """
+    Tải nội dung tệp clickup_task_template.md chứa các mẫu (template) task của dự án.
+    """
+    template_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "clickup_task_template.md")
+    if os.path.exists(template_path):
+        try:
+            with open(template_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            print(f"❌ Lỗi khi đọc file template ClickUp: {e}")
+    return ""
+
+
+def generate_clickup_task_details_gemini(messages: list) -> tuple:
+    """
+    Sử dụng Gemini để phân tích nội dung thread Slack và sinh ra tiêu đề cùng mô tả chi tiết của task ClickUp dựa trên các template chuẩn trong clickup_task_template.md.
+    """
+    # Tải nội dung template chuẩn
+    templates_content = load_clickup_templates()
+    if not templates_content:
+        templates_content = "Vui lòng phân loại và format theo chuẩn BUG, CR, hoặc FEATURE."
+
+    formatted_thread = ""
+    for msg in messages:
+        user = msg.get("user") or msg.get("bot_id") or "Unknown"
+        text = msg.get("text", "")
+        formatted_thread += f"[{user}]: {text}\n\n"
+        
+    prompt = f"""Bạn là chuyên gia phân tích nghiệp vụ (BA) và quản lý dự án.
+Dưới đây là tài liệu quy định các mẫu (template) và cách đặt tiêu đề cho ClickUp task:
+=== CÁC TEMPLATE CHUẨN ===
+{templates_content}
+===========================
+
+Nội dung cuộc trò chuyện trong một thread trên Slack cần tạo task:
+---
+{formatted_thread}
+---
+
+Hãy thực hiện các yêu cầu sau dựa trên các template chuẩn trên:
+1. Phân loại cuộc thảo luận trên thành một trong ba loại task: Bug Report, Change Request (CR) hoặc Feature Task.
+2. Đặt tiêu đề (name) cho task tuân thủ đúng quy tắc đặt tiêu đề của loại task đó (ví dụ: `[BUG] [Tạm giữ Sale] - Lỗi crash...` hoặc `[CR] [Phiếu thu] - Đổi hiển thị...`). Hãy tự xác định Phân hệ/Module từ nội dung thảo luận.
+3. Soạn nội dung mô tả (description) cho task dưới định dạng Markdown, điền đầy đủ thông tin chi tiết được thảo luận trong thread vào đúng template chuẩn tương ứng của loại task đó (ví dụ: các bước tái hiện, hiện trạng, yêu cầu thay đổi, điều kiện nghiệm thu...).
+
+Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
+{{
+  "name": "Tiêu đề task đúng cấu trúc đặt tên",
+  "description": "Nội dung mô tả chi tiết điền theo đúng template tương ứng bằng markdown"
+}}
+Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json hay bất kỳ văn bản giải thích nào khác xung quanh.
+"""
+    try:
+        model = genai.GenerativeModel("gemini-3.1-flash-lite")
+        response = model.generate_content(prompt)
+        text_resp = response.text.strip()
+        if text_resp.startswith("```"):
+            text_resp = re.sub(r"^```(?:json)?\n", "", text_resp)
+            text_resp = re.sub(r"\n```$", "", text_resp)
+        data = json.loads(text_resp)
+        return data.get("name", "Task từ Slack Thread"), data.get("description", "Không có mô tả chi tiết.")
+    except Exception as e:
+        print(f"❌ Lỗi khi dùng Gemini tạo chi tiết task dựa trên template: {e}")
+        first_msg = messages[0].get("text", "") if messages else "Task từ Slack"
+        title = first_msg[:50] + "..." if len(first_msg) > 50 else first_msg
+        desc = "Thảo luận chi tiết:\n"
+        for msg in messages:
+            desc += f"- {msg.get('text', '')}\n"
+        return title, desc
+
+
+def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
+    """
+    Tạo một task trên ClickUp từ nội dung thảo luận trong một thread Slack.
+    Sử dụng công cụ này khi người dùng yêu cầu tạo task ClickUp từ thread hiện tại.
+    Thông tin channel_id và thread_ts có thể lấy từ [Slack Context] ở cuối câu hỏi của người dùng.
+    
+    Args:
+        channel_id: ID của kênh Slack (ví dụ: 'C01234567').
+        thread_ts: ID timestamp của thread Slack (ví dụ: '1234567890.123456').
+    """
+    print(f"➕ Bắt đầu tạo ClickUp Task từ thread {thread_ts} trong kênh {channel_id}")
+    
+    if not channel_id or not thread_ts:
+        return "Lỗi: Thiếu thông tin channel_id hoặc thread_ts."
+        
+    # Tránh tạo trùng bằng cách quét các task hiện tại trên ClickUp
+    list_id = os.environ.get("CLICKUP_LIST_ID", "901818745715")
+    print(f"🔍 Đang kiểm tra xem thread {thread_ts} đã được tạo task trên ClickUp chưa...")
+    existing_res = call_clickup_mcp("clickup_get_tasks", {
+        "list_id": list_id,
+        "include_markdown_description": True,
+        "include_closed": True
+    })
+    
+    existing_tasks = []
+    if isinstance(existing_res, dict):
+        existing_tasks = existing_res.get("tasks", [])
+    elif isinstance(existing_res, list):
+        existing_tasks = existing_res
+        
+    for task in existing_tasks:
+        desc = task.get("description") or task.get("markdown_description") or ""
+        if f"thread_ts={thread_ts}" in desc:
+            t_id = task.get("id")
+            t_name = task.get("name")
+            t_url = task.get("url")
+            print(f"⚠️ Task đã tồn tại: {t_id} ({t_name})")
+            return f"⚠️ Task này đã được tạo trước đó trên ClickUp từ thread Slack này rồi!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {t_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>"
+
+    messages = fetch_slack_thread_messages_sync(channel_id, thread_ts)
+    if not messages:
+        return "Không thể lấy nội dung tin nhắn từ thread này hoặc thread không tồn tại."
+        
+    task_name, task_desc = generate_clickup_task_details_gemini(messages)
+    
+    slack_link = f"https://slack.com/app_redirect?channel={channel_id}&thread_ts={thread_ts}"
+    task_desc += f"\n\n---\n🔗 **Link thảo luận trên Slack:** [Xem thread trên Slack]({slack_link})"
+    
+    arguments = {
+        "list_id": list_id,
+        "name": task_name,
+        "markdown_description": task_desc
+    }
+    
+    print(f"🚀 Gọi ClickUp MCP tạo task với tên: '{task_name}'")
+    res = call_clickup_mcp("clickup_create_task", arguments)
+    
+    if isinstance(res, dict) and "error" in res:
+        return f"Lỗi khi tạo task trên ClickUp: {res['error']}"
+        
+    t_id = ""
+    t_url = ""
+    if isinstance(res, dict):
+        t_id = res.get("id", "")
+        t_url = res.get("url", "")
+        
+    if t_id:
+        return f"🎉 Đã tạo thành công task trên ClickUp từ thread Slack này!\n- **Task ID:** [{t_id}]\n- **Tiêu đề:** {task_name}\n- **Đường dẫn:** <{t_url}|Xem task trên ClickUp>"
+    else:
+        return f"Tạo task thành công nhưng không lấy được ID. Phản hồi từ ClickUp: {str(res)}"
+
+
 def search_srs_files(query: str) -> str:
     """
     Tìm kiếm các tệp tài liệu SRS chứa từ khóa hoặc có tên chứa từ khóa.
@@ -689,6 +856,7 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", v.v.).
 5. TÌM KIẾM CLICKUP: Bạn có quyền sử dụng công cụ `search_clickup_tasks(query, filter_bugs)` để tìm kiếm các task hoặc bug liên quan trên ClickUp. Khi người dùng hỏi về các công việc, task, bug, hoặc tiến độ trên ClickUp, hãy chủ động gọi công cụ này để lấy thông tin mới nhất và hiển thị cho họ.
 6. CHI TIẾT TASK CLICKUP: Bạn có quyền sử dụng công cụ `get_clickup_task(task_id)` để lấy thông tin chi tiết (bao gồm tiêu đề, trạng thái, mô tả) của một task cụ thể trên ClickUp. Khi người dùng cung cấp link ClickUp hoặc mã task (ví dụ: '86exxz2xr'), hãy LUÔN LUÔN chủ động gọi công cụ này để đọc nội dung công việc trước khi phân tích/trả lời.
+7. TẠO TASK CLICKUP TỪ THREAD SLACK: Bạn có quyền sử dụng công cụ `create_clickup_task_from_thread(channel_id, thread_ts)` để tạo một task mới trên ClickUp từ nội dung hội thoại trong thread Slack hiện tại. Hãy lấy channel_id và thread_ts từ thông tin [Slack Context] ở cuối câu hỏi của người dùng.
 
 ĐỘ DÀI & ĐỊNH DẠNG CÂU TRẢ LỜI BẮT BUỘC:
 - MẶC ĐỊNH (TÓM GỌN): Trả lời cực kỳ ngắn gọn, súc tích (dưới 15 dòng). Chỉ nêu các ý chính cốt lõi nhất dưới dạng gạch đầu dòng ngắn.
@@ -705,6 +873,7 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong các bảng dữ liệu Use Case) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
 5. TÌM KIẾM CLICKUP: Bạn có quyền sử dụng công cụ `search_clickup_tasks(query, filter_bugs)` để tìm kiếm các task hoặc bug liên quan trên ClickUp. Khi được hỏi về công việc hoặc bug liên quan trên ClickUp, hãy chủ động gọi công cụ này để lấy thông tin.
 6. CHI TIẾT TASK CLICKUP: Bạn có quyền sử dụng công cụ `get_clickup_task(task_id)` để lấy thông tin chi tiết (bao gồm tiêu đề, trạng thái, mô tả) của một task cụ thể trên ClickUp. Khi người dùng cung cấp link ClickUp hoặc mã task (ví dụ: '86exxz2xr'), hãy LUÔN LUÔN chủ động gọi công cụ này để đọc nội dung công việc trước khi phân tích/trả lời.
+7. TẠO TASK CLICKUP TỪ THREAD SLACK: Bạn có quyền sử dụng công cụ `create_clickup_task_from_thread(channel_id, thread_ts)` để tạo một task mới trên ClickUp từ nội dung hội thoại trong thread Slack hiện tại. Hãy lấy channel_id và thread_ts từ thông tin [Slack Context] ở cuối câu hỏi của người dùng.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -760,6 +929,7 @@ QUY TẮC PHÂN TÍCH & TRẢ LỜI:
 4. ĐỒNG NHẤT TIẾNG VIỆT 100%: Toàn bộ câu trả lời (bao gồm phần mô tả, danh sách và tất cả các ô trong bảng kịch bản UAT) BẮT BUỘC phải viết bằng tiếng Việt đồng nhất, không pha trộn tiếng Anh (ngoại trừ tên trạng thái kỹ thuật viết hoa như DRAFT, APPROVED, PAID, RECOVERED, CANCELLED hoặc thuật toán FIFO, Zod). Tuyệt đối không dùng các từ tiếng Anh xen kẽ (Ví dụ: dùng "Người dùng" thay cho "User", "Hệ thống" thay cho "System", "Tác nhân" thay cho "Actor", "Điều kiện tiên quyết" thay cho "Precondition", v.v.).
 5. TÌM KIẾM CLICKUP: Bạn có quyền sử dụng công cụ `search_clickup_tasks(query, filter_bugs)` để tìm kiếm các task hoặc bug liên quan trên ClickUp. Khi được hỏi về kịch bản kiểm thử, bug hoặc task trên ClickUp, hãy chủ động gọi công cụ này để lấy thông tin.
 6. CHI TIẾT TASK CLICKUP: Bạn có quyền sử dụng công cụ `get_clickup_task(task_id)` để lấy thông tin chi tiết (bao gồm tiêu đề, trạng thái, mô tả) của một task cụ thể trên ClickUp. Khi người dùng cung cấp link ClickUp hoặc mã task (ví dụ: '86exxz2xr'), hãy LUÔN LUÔN chủ động gọi công cụ này để đọc nội dung công việc trước khi phân tích/trả lời.
+7. TẠO TASK CLICKUP TỪ THREAD SLACK: Bạn có quyền sử dụng công cụ `create_clickup_task_from_thread(channel_id, thread_ts)` để tạo một task mới trên ClickUp từ nội dung hội thoại trong thread Slack hiện tại. Hãy lấy channel_id và thread_ts từ thông tin [Slack Context] ở cuối câu hỏi của người dùng.
 
 CẤU TRÚC PHẢN HỒI BẮT BUỘC:
 
@@ -814,19 +984,19 @@ if qa_skill:
 model_default = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_default,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread]
 )
 
 model_ba = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread]
 )
 
 model_qa = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread]
 )
 
 # Khởi tạo Async Slack App
@@ -911,8 +1081,12 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
         else:
             current_model = model_default
             
+        # Thêm Slack Context ẩn để Gemini biết thông tin thread
+        slack_context = f"\n\n[Slack Context: channel_id={channel_id}, thread_ts={target_thread_ts or ''}]"
+        gemini_query = f"{query}{slack_context}"
+        
         chat = current_model.start_chat(history=history, enable_automatic_function_calling=True)
-        response = chat.send_message(query)
+        response = chat.send_message(gemini_query)
         
         # Phân tích xem có bảng Markdown nào không
         tables = parse_all_markdown_tables(response.text)
@@ -1041,6 +1215,22 @@ async def handle_mention(event, say, client):
     elif query.startswith("/testcase") or query.lower().startswith("testcase"):
         sub_query = re.sub(r"^/?testcase\s*", "", query, flags=re.IGNORECASE).strip()
         query = f"Hãy sinh chi tiết đặc tả kịch bản test UAT cho yêu cầu sau: {sub_query}"
+    elif query.startswith("/create_task") or query.lower().startswith("create_task") or \
+         query.startswith("/create-task") or query.lower().startswith("create-task") or \
+         query.startswith("/clickup-task") or query.lower().startswith("clickup-task") or \
+         "tạo task clickup" in query.lower() or "tạo clickup task" in query.lower() or \
+         "tạo task click up" in query.lower():
+         
+        if not thread_ts:
+            await say("⚠️ Tính năng tạo task ClickUp từ thread chỉ hoạt động khi bạn tag tôi và yêu cầu *trong một thread thảo luận* (hoặc reply).", thread_ts=target_thread_ts)
+            return
+            
+        await say("⏳ Đang phân tích nội dung thread và khởi tạo task trên ClickUp, vui lòng đợi trong giây lát...", thread_ts=target_thread_ts)
+        
+        loop = asyncio.get_running_loop()
+        result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts)
+        await say(result_text, thread_ts=target_thread_ts)
+        return
         
     if not query:
         await say("👋 Xin chào! Tôi là trợ lý AI chuyên giải đáp tài liệu SRS của dự án MaiVietLand. Hãy nhập câu hỏi sau khi tag tôi nhé! Ví dụ: `@SRS Assist luồng booking`", thread_ts=target_thread_ts)
@@ -1133,6 +1323,22 @@ async def handle_testcase_command(ack, body, say, client):
     
     # Run query response process
     await handle_query_and_respond(query, [], channel_id, None, client, say)
+
+@app.command("/create-task")
+async def handle_create_task_command(ack, body, say, client):
+    await ack()
+    channel_id = body.get("channel_id")
+    thread_ts = body.get("thread_ts")
+    
+    if not thread_ts:
+        await say("⚠️ Lệnh `/create-task` chỉ hoạt động khi được gọi bên trong một thread thảo luận của Slack.")
+        return
+        
+    await say("⏳ Đang phân tích nội dung thread và khởi tạo task trên ClickUp, vui lòng đợi...", thread_ts=thread_ts)
+    
+    loop = asyncio.get_running_loop()
+    result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts)
+    await say(result_text, thread_ts=thread_ts)
 
 async def main():
     app_token = os.environ.get("SLACK_APP_TOKEN")
