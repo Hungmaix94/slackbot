@@ -30,9 +30,117 @@ if not SRS_DIR:
     if not SRS_DIR:
         SRS_DIR = "/home/phamhung/Work/MVL/web/docs/srs/docs"
 
+# Mapping Slack user display name (lowercase) -> ClickUp user ID
+# Được lấy từ Slack team list match với ClickUp workspace members
+# Key: tên hiển thị trên Slack (lowercase, bỏ dấu hoặc có dấu đều match)
+# Value: ClickUp user ID (number)
+SLACK_TO_CLICKUP_USERS = {
+    # Glinteco workspace members
+    "nhung nguyễn": 107451239,
+    "nhung nguyen": 107451239,
+    "duc hung pham": 288804163,
+    "phamhung": 288804163,
+    "vy nguyễn thảo": 113605915,
+    "vy nguyen thao": 113605915,
+    "minh anh tran design": 101462889,
+    "giang nguyen": 216194714,
+    "giang nguyễn": 216194714,
+    "minh quang": 113471173,
+    "vu anh duc": 107450663,
+    "vũ anh đức": 107450663,
+    "minh anh": 113429058,
+    "kien tuanho": 113418766,
+    "hieu nguyen": 113410484,
+    "hiếu nguyễn": 113410484,
+    "nguyễn bảo liên": 113403029,
+    "nguyen bao lien": 113403029,
+    "ánh mai": 107690851,
+    "anh mai": 107690851,
+    "phong đỗ nguyễn hùng": 294612005,
+    "phong do nguyen hung": 294612005,
+    "hangnt": 107543173,
+    "vunguyen": 107410184,
+    "vu nguyen": 107410184,
+    "hoàng vũ": 101516237,
+    "hoang vu": 101516237,
+    "lê khanh": 101515555,
+    "le khanh": 101515555,
+    "toantd": 294767809,
+    "lê sơn duy": 101446032,
+    "le son duy": 101446032,
+    "nguyễn ngọc tráng": 101444960,
+    "nguyen ngoc trang": 101444960,
+    "tường vi": 101444942,
+    "tuong vi": 101444942,
+    "phuong manh duc": 101444935,
+    "trang pham": 101444933,
+    "trang phạm": 101444933,
+    "kiều tuấn phương": 101444932,
+    "kieu tuan phuong": 101444932,
+    "nguyễn việt mạnh": 101407928,
+    "nguyen viet manh": 101407928,
+    "lê quán trần hồng": 95492241,
+    "le quan tran hong": 95492241,
+    "vu quang hoa": 55720511,
+    "vũ quang hòa": 55720511,
+    "td hien": 288725041,
+    "khoa nguyễn": 282755116,
+    "khoa nguyen": 282755116,
+}
+
+# Nhung Nguyễn ClickUp user ID - dùng để kiểm tra có nên giữ follower không
+NHUNG_NGUYEN_CLICKUP_ID = 107451239
+
+
+def resolve_clickup_user_id(slack_user_id: str) -> int | None:
+    """
+    Lấy thông tin Slack user profile rồi match tên với danh sách ClickUp members.
+    Trả về ClickUp user ID nếu match, None nếu không tìm thấy.
+    """
+    if not slack_user_id:
+        return None
+    try:
+        token = os.environ.get("SLACK_BOT_TOKEN")
+        if not token:
+            print("❌ Thiếu SLACK_BOT_TOKEN để lấy user info")
+            return None
+        headers = {"Authorization": f"Bearer {token}"}
+        resp = requests.get(
+            f"https://slack.com/api/users.info?user={slack_user_id}",
+            headers=headers
+        )
+        data = resp.json()
+        if not data.get("ok"):
+            print(f"❌ Lỗi lấy Slack user info: {data.get('error')}")
+            return None
+        
+        user_obj = data.get("user", {})
+        profile = user_obj.get("profile", {})
+        
+        # Thử match theo thứ tự: display_name -> real_name -> name
+        candidates = [
+            profile.get("display_name", ""),
+            profile.get("real_name", ""),
+            user_obj.get("real_name", ""),
+            user_obj.get("name", ""),
+        ]
+        
+        for name in candidates:
+            name_lower = name.strip().lower()
+            if name_lower and name_lower in SLACK_TO_CLICKUP_USERS:
+                clickup_id = SLACK_TO_CLICKUP_USERS[name_lower]
+                print(f"✅ Matched Slack user '{name}' -> ClickUp ID {clickup_id}")
+                return clickup_id
+        
+        print(f"⚠️ Không tìm thấy ClickUp user match cho Slack user: {candidates}")
+        return None
+    except Exception as e:
+        print(f"❌ Lỗi khi resolve ClickUp user ID: {e}")
+        return None
+
 def call_clickup_mcp(tool_name, arguments):
     import subprocess
-    token = os.environ.get("CLICKUP_API_TOKEN") or os.environ.get("CLICKUP_TOKEN") or "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS"
+    token = os.environ.get("CLICKUP_API_TOKEN") or os.environ.get("CLICKUP_TOKEN") or "pk_107451239_UZQUPCLD6KHM4NHLQZ2OZGVH6BJ51N0D"
     cmd = ["npx", "-y", "@cavort-it-systems/clickup-mcp"]
     env = dict(os.environ, CLICKUP_API_TOKEN=token)
     proc = subprocess.Popen(
@@ -119,13 +227,141 @@ def call_clickup_mcp(tool_name, arguments):
         proc.terminate()
         proc.wait()
 
-def search_clickup_tasks(query: str, filter_bugs: bool = None) -> str:
+def call_codebase_memory_mcp(tool_name, arguments):
+    import subprocess
+    import shutil
+    mcp_path = shutil.which("codebase-memory-mcp")
+    if not mcp_path:
+        possible_paths = [
+            "/home/ubuntu/.local/bin/codebase-memory-mcp",
+            "/home/phamhung/.local/bin/codebase-memory-mcp"
+        ]
+        for p in possible_paths:
+            if os.path.exists(p):
+                mcp_path = p
+                break
+        if not mcp_path:
+            mcp_path = "codebase-memory-mcp"
+            
+    cmd = [mcp_path]
+    env = dict(os.environ)
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+        env=env
+    )
+    try:
+        # 1. Initialize
+        init_req = {
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "slackbot-client", "version": "1.0"}
+            }
+        }
+        proc.stdin.write(json.dumps(init_req) + "\n")
+        proc.stdin.flush()
+        
+        init_resp = None
+        for line in proc.stdout:
+            try:
+                data = json.loads(line)
+                if data.get("id") == 1:
+                    init_resp = data
+                    break
+            except json.JSONDecodeError:
+                continue
+                
+        if not init_resp:
+            return {"error": "Failed to initialize MCP server"}
+            
+        # 2. Send initialized notification
+        init_notif = {
+            "jsonrpc": "2.0",
+            "method": "notifications/initialized"
+        }
+        proc.stdin.write(json.dumps(init_notif) + "\n")
+        proc.stdin.flush()
+        
+        # 3. Call tool
+        tool_req = {
+            "jsonrpc": "2.0",
+            "id": 2,
+            "method": "tools/call",
+            "params": {
+                "name": tool_name,
+                "arguments": arguments
+            }
+        }
+        proc.stdin.write(json.dumps(tool_req) + "\n")
+        proc.stdin.flush()
+        
+        # 4. Read response
+        tool_resp = None
+        for line in proc.stdout:
+            try:
+                data = json.loads(line)
+                if data.get("id") == 2:
+                    tool_resp = data
+                    break
+            except json.JSONDecodeError:
+                continue
+                
+        if tool_resp and "result" in tool_resp:
+            content = tool_resp["result"].get("content", [])
+            if content and content[0].get("type") == "text":
+                try:
+                    return json.loads(content[0]["text"])
+                except Exception:
+                    return content[0]["text"]
+        return tool_resp
+    except Exception as e:
+        return {"error": str(e)}
+    finally:
+        proc.stdin.close()
+        proc.terminate()
+        proc.wait()
+
+def mcp_index_repository(repo_path: str) -> str:
     """
-    Tìm kiếm các công việc (tasks) hoặc bug trên ClickUp liên quan đến từ khóa sử dụng ClickUp MCP.
+    Lập chỉ mục (index) một repository hoặc thư mục vào knowledge graph của codebase-memory-mcp.
+    Dùng công cụ này khi cần index thư mục SRS hoặc bất kỳ dự án nào.
+
+    Args:
+        repo_path: Đường dẫn tuyệt đối đến thư mục cần index (ví dụ: '/mnt/D/Work/MVL/slackbot', hoặc thư mục SRS).
+    """
+    res = call_codebase_memory_mcp("index_repository", {"repo_path": repo_path})
+    if isinstance(res, dict) and "error" in res:
+        return f"Lỗi khi index repository qua MCP: {res['error']}"
+    return f"Đã index thành công: {json.dumps(res, ensure_ascii=False)}"
+
+def mcp_search_graph(name_pattern: str) -> str:
+    """
+    Tìm kiếm các node trong codebase knowledge graph theo tên và loại.
+
+    Args:
+        name_pattern: Từ khóa hoặc pattern regex để tìm kiếm (ví dụ: 'srs', 'User', '.*Service.*').
+    """
+    res = call_codebase_memory_mcp("search_graph", {"name_pattern": name_pattern})
+    if isinstance(res, dict) and "error" in res:
+        return f"Lỗi khi search_graph qua MCP: {res['error']}"
+    return f"Kết quả search_graph: {json.dumps(res, ensure_ascii=False)}"
+
+
+def search_clickup_tasks(query: str, filter_bugs: bool = False) -> str:
+    """
+    Tìm kiếm các công việc (tasks) trên ClickUp liên quan đến từ khóa sử dụng ClickUp MCP.
 
     Args:
         query: Từ khóa hoặc chủ đề cần tìm kiếm (ví dụ: 'tạm ứng', 'hoa hồng', 'đối chiếu').
-        filter_bugs: Đặt là True nếu chỉ muốn tìm bug/lỗi. Đặt là False nếu chỉ muốn tìm task nghiệp vụ. Đặt là None/không truyền để lấy cả hai.
+        filter_bugs: Mặc định là False (chỉ lấy task nghiệp vụ). Đặt là True nếu muốn tra cứu bug.
     """
     team_id = os.environ.get("CLICKUP_TEAM_ID", "90181237095")
     list_id = os.environ.get("CLICKUP_LIST_ID", "901818745715")
@@ -330,7 +566,7 @@ def upload_attachment_to_clickup_task(task_id: str, file_name: str, file_content
     """
     Tải lên file đính kèm lên một ClickUp task qua ClickUp API.
     """
-    token = os.environ.get("CLICKUP_API_TOKEN") or os.environ.get("CLICKUP_TOKEN") or "pk_288804163_TS4QZV0GZEDMO5MNYVMY03FR1QSPLJNS"
+    token = os.environ.get("CLICKUP_API_TOKEN") or os.environ.get("CLICKUP_TOKEN") or "pk_107451239_UZQUPCLD6KHM4NHLQZ2OZGVH6BJ51N0D"
     url = f"https://api.clickup.com/api/v2/task/{task_id}/attachment"
     headers = {
         "Authorization": token
@@ -418,7 +654,7 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json ha
         return title, desc
 
 
-def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
+def create_clickup_task_from_thread(channel_id: str, thread_ts: str, slack_user_id: str = None) -> str:
     """
     Tạo hoặc cập nhật một task trên ClickUp từ nội dung thảo luận trong một thread Slack.
     Sử dụng công cụ này khi người dùng yêu cầu tạo/cập nhật task ClickUp từ thread hiện tại.
@@ -427,7 +663,12 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
     Args:
         channel_id: ID của kênh Slack (ví dụ: 'C01234567').
         thread_ts: ID timestamp của thread Slack (ví dụ: '1234567890.123456').
+        slack_user_id: Slack user ID của người ra lệnh tạo task (để gắn assignee và kiểm soát follower).
     """
+    # Resolve ClickUp user ID từ Slack user
+    clickup_user_id = resolve_clickup_user_id(slack_user_id)
+    is_nhung = clickup_user_id == NHUNG_NGUYEN_CLICKUP_ID
+    print(f"👤 Người tạo task: Slack={slack_user_id}, ClickUp={clickup_user_id}, isNhung={is_nhung}")
     print(f"➕ Bắt đầu xử lý ClickUp Task từ thread {thread_ts} trong kênh {channel_id}")
     
     if not channel_id or not thread_ts:
@@ -519,8 +760,18 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str) -> str:
         arguments = {
             "list_id": list_id,
             "name": task_name,
-            "markdown_description": task_desc
+            "markdown_description": task_desc,
         }
+        
+        # Gắn assignee cho người tạo task
+        if clickup_user_id:
+            arguments["assignees"] = [clickup_user_id]
+            print(f"👤 Gắn assignee ClickUp user ID: {clickup_user_id}")
+        
+        # Bỏ follower (notify_all=false) nếu người tạo không phải Nhung Nguyễn
+        if not is_nhung:
+            arguments["notify_all"] = False
+            print(f"🔕 Tắt notify_all vì người tạo không phải Nhung Nguyễn")
         
         print(f"🚀 Gọi ClickUp MCP tạo task với tên: '{task_name}'")
         res = call_clickup_mcp("clickup_create_task", arguments)
@@ -1116,19 +1367,19 @@ if qa_skill:
 model_default = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_default,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_ba = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_qa = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread]
+    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 # Khởi tạo Async Slack App
@@ -1359,8 +1610,11 @@ async def handle_mention(event, say, client):
             
         await say("⏳ Đang phân tích nội dung thread và khởi tạo task trên ClickUp, vui lòng đợi trong giây lát...", thread_ts=target_thread_ts)
         
+        # Lấy Slack user ID của người ra lệnh
+        requester_user_id = event.get("user")
+        
         loop = asyncio.get_running_loop()
-        result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts)
+        result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts, requester_user_id)
         await say(result_text, thread_ts=target_thread_ts)
         return
         
@@ -1461,6 +1715,7 @@ async def handle_create_task_command(ack, body, say, client):
     await ack()
     channel_id = body.get("channel_id")
     thread_ts = body.get("thread_ts")
+    requester_user_id = body.get("user_id")
     
     if not thread_ts:
         await say("⚠️ Lệnh `/create-task` chỉ hoạt động khi được gọi bên trong một thread thảo luận của Slack.")
@@ -1469,8 +1724,23 @@ async def handle_create_task_command(ack, body, say, client):
     await say("⏳ Đang phân tích nội dung thread và khởi tạo task trên ClickUp, vui lòng đợi...", thread_ts=thread_ts)
     
     loop = asyncio.get_running_loop()
-    result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts)
+    result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts, requester_user_id)
     await say(result_text, thread_ts=thread_ts)
+
+@app.command("/bugs")
+async def handle_bugs_command(ack, body, say, client):
+    await ack()
+    text = body.get("text", "").strip()
+    
+    if not text:
+        await say("👋 Bạn đã dùng lệnh `/bugs`. Hãy cung cấp thêm thông tin lỗi cần tra cứu nhé! Ví dụ: `/bugs lỗi xuất file excel`")
+        return
+        
+    await say(f"⏳ Đang tra cứu các bug/lỗi liên quan đến: *{text}* trên ClickUp, vui lòng đợi...")
+    
+    loop = asyncio.get_running_loop()
+    result_text = await loop.run_in_executor(None, search_clickup_tasks, text, True)
+    await say(result_text)
 
 async def main():
     app_token = os.environ.get("SLACK_APP_TOKEN")
