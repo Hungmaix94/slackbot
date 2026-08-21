@@ -68,24 +68,54 @@ SLACK_TO_CLICKUP_USERS = {
     "toantd": 294767809,
     "lê sơn duy": 101446032,
     "le son duy": 101446032,
-    "nguyễn ngọc tráng": 101444960,
-    "nguyen ngoc trang": 101444960,
-    "tường vi": 101444942,
-    "tuong vi": 101444942,
-    "phuong manh duc": 101444935,
-    "trang pham": 101444933,
-    "trang phạm": 101444933,
-    "kiều tuấn phương": 101444932,
-    "kieu tuan phuong": 101444932,
+    "hungpd": 288804163,
+    "phamhung.bk94@gmail.com": 288804163,
+    
     "nguyễn việt mạnh": 101407928,
     "nguyen viet manh": 101407928,
+    "manh.nguyenviet@glinteco.com": 101407928,
+    
     "lê quán trần hồng": 95492241,
     "le quan tran hong": 95492241,
+    
     "vu quang hoa": 55720511,
     "vũ quang hòa": 55720511,
+    
     "td hien": 288725041,
+    "hien.trandoan@glinteco.com": 288725041,
+    
     "khoa nguyễn": 282755116,
     "khoa nguyen": 282755116,
+    "khoa.nguyencong@glinteco.com": 282755116,
+    
+    "trang pham": 101444933,
+    "trangcao13@gmail.com": 101444933,
+    
+    "phuong manh duc": 101444935,
+    "phuongmanhduc123@gmail.com": 101444935,
+    
+    "tường vi": 101444942,
+    "tuong vi": 101444942,
+    "ngttuongvi25@gmail.com": 101444942,
+    
+    "nguyễn ngọc tráng": 101444960,
+    "nguyen ngoc trang": 101444960,
+    "trangnn2908@gmail.com": 101444960,
+    
+    "lê sơn duy": 101446032,
+    "le son duy": 101446032,
+    "duyleson76@gmail.com": 101446032,
+    
+    "vunguyen": 107410184,
+    "vu nguyen": 107410184,
+    "nguyenvu.dev.io@gmail.com": 107410184,
+    
+    "mỹ lê thế": 113639072,
+    "my le the": 113639072,
+    "lethemi436@gmail.com": 113639072,
+    
+    "hien tran doan": 113642224,
+    "hientd1310@gmail.com": 113642224,
 }
 
 # Nhung Nguyễn ClickUp user ID - dùng để kiểm tra có nên giữ follower không
@@ -117,8 +147,9 @@ def resolve_clickup_user_id(slack_user_id: str) -> int | None:
         user_obj = data.get("user", {})
         profile = user_obj.get("profile", {})
         
-        # Thử match theo thứ tự: display_name -> real_name -> name
+        # Thử match theo thứ tự: email -> display_name -> real_name -> name
         candidates = [
+            profile.get("email", ""),
             profile.get("display_name", ""),
             profile.get("real_name", ""),
             user_obj.get("real_name", ""),
@@ -137,6 +168,16 @@ def resolve_clickup_user_id(slack_user_id: str) -> int | None:
     except Exception as e:
         print(f"❌ Lỗi khi resolve ClickUp user ID: {e}")
         return None
+
+def resolve_clickup_user_by_name(name: str) -> int | None:
+    """Tìm ID ClickUp từ tên người dùng."""
+    if not name:
+        return None
+    name_lower = name.strip().lower()
+    for key, clickup_id in SLACK_TO_CLICKUP_USERS.items():
+        if name_lower in key or key in name_lower:
+            return clickup_id
+    return None
 
 def call_clickup_mcp(tool_name, arguments):
     import subprocess
@@ -626,12 +667,14 @@ Nội dung cuộc trò chuyện trong một thread trên Slack cần tạo task:
 Hãy thực hiện các yêu cầu sau dựa trên các template chuẩn trên:
 1. Phân loại cuộc thảo luận trên thành một trong ba loại task: Bug Report, Change Request (CR) hoặc Feature Task.
 2. Đặt tiêu đề (name) cho task tuân thủ đúng quy tắc đặt tiêu đề của loại task đó (ví dụ: `[BUG] [Tạm giữ Sale] - Lỗi crash...` hoặc `[CR] [Phiếu thu] - Đổi hiển thị...`). Hãy tự xác định Phân hệ/Module từ nội dung thảo luận.
-3. Soạn nội dung mô tả (description) cho task dưới định dạng Markdown, điền đầy đủ thông tin chi tiết được thảo luận trong thread vào đúng template chuẩn tương ứng của loại task đó (ví dụ: các bước tái hiện, hiện trạng, yêu cầu thay đổi, điều kiện nghiệm thu...).
+3. Soạn nội dung mô tả (description) cho task dưới định dạng Markdown, điền đầy đủ thông tin chi tiết được thảo luận trong thread vào đúng template chuẩn tương ứng của loại task đó.
+4. Kiểm tra xem trong cuộc thảo luận có nhắc đến việc gán (assign) task cho ai không (ví dụ: "assign cho khoa", "giao cho mạnh"). Nếu có, hãy trích xuất tên người đó. Nếu không có nhắc đến, hãy để null.
 
 Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
 {{
   "name": "Tiêu đề task đúng cấu trúc đặt tên",
-  "description": "Nội dung mô tả chi tiết điền theo đúng template tương ứng bằng markdown"
+  "description": "Nội dung mô tả chi tiết điền theo đúng template tương ứng bằng markdown",
+  "assignee": "Tên người được assign hoặc null"
 }}
 Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json hay bất kỳ văn bản giải thích nào khác xung quanh.
 """
@@ -643,7 +686,7 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json ha
             text_resp = re.sub(r"^```(?:json)?\n", "", text_resp)
             text_resp = re.sub(r"\n```$", "", text_resp)
         data = json.loads(text_resp)
-        return data.get("name", "Task từ Slack Thread"), data.get("description", "Không có mô tả chi tiết.")
+        return data.get("name", "Task từ Slack Thread"), data.get("description", "Không có mô tả chi tiết."), data.get("assignee")
     except Exception as e:
         print(f"❌ Lỗi khi dùng Gemini tạo chi tiết task dựa trên template: {e}")
         first_msg = messages[0].get("text", "") if messages else "Task từ Slack"
@@ -651,7 +694,7 @@ Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json ha
         desc = "Thảo luận chi tiết:\n"
         for msg in messages:
             desc += f"- {msg.get('text', '')}\n"
-        return title, desc
+        return title, desc, None
 
 
 def create_clickup_task_from_thread(channel_id: str, thread_ts: str, slack_user_id: str = None) -> str:
@@ -703,7 +746,7 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str, slack_user_
         return "⚠️ Không thể lấy nội dung tin nhắn từ thread này (thread trống hoặc không tồn tại)."
         
     # Sinh thông tin task bằng Gemini
-    task_name, task_desc = generate_clickup_task_details_gemini(messages)
+    task_name, task_desc, explicit_assignee = generate_clickup_task_details_gemini(messages)
     slack_link = f"https://slack.com/app_redirect?channel={channel_id}&thread_ts={thread_ts}"
     task_desc += f"\n\n---\n🔗 **Link thảo luận trên Slack:** [Xem thread trên Slack]({slack_link})\n[Slack Thread Metadata: channel_id={channel_id} thread_ts={thread_ts}]"
     
@@ -763,10 +806,21 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str, slack_user_
             "markdown_description": task_desc,
         }
         
-        # Gắn assignee cho người tạo task
-        if clickup_user_id:
-            arguments["assignees"] = [clickup_user_id]
-            print(f"👤 Gắn assignee ClickUp user ID: {clickup_user_id}")
+        # Gắn assignee
+        assignees_to_add = []
+        if explicit_assignee:
+            explicit_clickup_id = resolve_clickup_user_by_name(explicit_assignee)
+            if explicit_clickup_id:
+                assignees_to_add.append(explicit_clickup_id)
+                print(f"👤 Gắn assignee dựa trên yêu cầu trong thread: {explicit_assignee} -> {explicit_clickup_id}")
+        
+        # Fallback nếu không có explicit assignee hoặc không tìm thấy
+        if not assignees_to_add and clickup_user_id:
+            assignees_to_add.append(clickup_user_id)
+            print(f"👤 Gắn assignee mặc định cho người tạo task: {clickup_user_id}")
+            
+        if assignees_to_add:
+            arguments["assignees"] = assignees_to_add
         
         # Bỏ follower (notify_all=false) nếu người tạo không phải Nhung Nguyễn
         if not is_nhung:
@@ -1521,7 +1575,13 @@ async def handle_query_and_respond(query, history, channel_id, target_thread_ts,
             "clickup.com" in response.text or 
             any(re.search(r'\[86ey[a-z0-9]+\]', line) for line in response.text.split('\n'))
         )
-        if not has_clickup_in_response:
+        
+        q_lower_check = query.lower()
+        explicit_list_request = ("list" in q_lower_check and ("bug" in q_lower_check or "lỗi" in q_lower_check or "task" in q_lower_check)) or \
+                                ("danh sách" in q_lower_check and ("bug" in q_lower_check or "lỗi" in q_lower_check or "task" in q_lower_check)) or \
+                                ("liên quan" in q_lower_check and ("bug" in q_lower_check or "lỗi" in q_lower_check or "task" in q_lower_check))
+                                
+        if not has_clickup_in_response and explicit_list_request:
             try:
                 search_term = extract_clickup_search_term_gemini(query)
                 if search_term and len(search_term) >= 2:
@@ -1598,11 +1658,9 @@ async def handle_mention(event, say, client):
     elif query.startswith("/testcase") or query.lower().startswith("testcase"):
         sub_query = re.sub(r"^/?testcase\s*", "", query, flags=re.IGNORECASE).strip()
         query = f"Hãy sinh chi tiết đặc tả kịch bản test UAT cho yêu cầu sau: {sub_query}"
-    elif query.startswith("/create_task") or query.lower().startswith("create_task") or \
-         query.startswith("/create-task") or query.lower().startswith("create-task") or \
-         query.startswith("/clickup-task") or query.lower().startswith("clickup-task") or \
-         "tạo task clickup" in query.lower() or "tạo clickup task" in query.lower() or \
-         "tạo task click up" in query.lower():
+    elif query.startswith("/create_task") or query.startswith("/create-task") or query.startswith("/clickup-task") or \
+         re.search(r'(tạo|create|log)\s*(1\s*|một\s*|thêm\s*)?(task|bug|lỗi)\b', query.lower()) or \
+         "clickup task" in query.lower():
          
         if not thread_ts:
             await say("⚠️ Tính năng tạo task ClickUp từ thread chỉ hoạt động khi bạn tag tôi và yêu cầu *trong một thread thảo luận* (hoặc reply).", thread_ts=target_thread_ts)
