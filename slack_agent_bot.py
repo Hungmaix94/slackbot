@@ -69,49 +69,68 @@ SLACK_TO_CLICKUP_USERS = {
     "lê sơn duy": 101446032,
     "le son duy": 101446032,
     "hungpd": 288804163,
+    "hùng": 288804163,
     "phamhung.bk94@gmail.com": 288804163,
     
     "nguyễn việt mạnh": 101407928,
     "nguyen viet manh": 101407928,
+    "mạnh": 101407928,
+    "manh": 101407928,
     "manh.nguyenviet@glinteco.com": 101407928,
     
     "lê quán trần hồng": 95492241,
     "le quan tran hong": 95492241,
+    "hồng": 95492241,
+    "hong": 95492241,
     
     "vu quang hoa": 55720511,
     "vũ quang hòa": 55720511,
+    "hòa": 55720511,
+    "hoa": 55720511,
     
     "td hien": 288725041,
+    "hiển": 288725041,
+    "hien": 288725041,
     "hien.trandoan@glinteco.com": 288725041,
     
     "khoa nguyễn": 282755116,
     "khoa nguyen": 282755116,
+    "khoa": 282755116,
     "khoa.nguyencong@glinteco.com": 282755116,
     
     "trang pham": 101444933,
     "trangcao13@gmail.com": 101444933,
     
     "phuong manh duc": 101444935,
+    "đức": 101444935,
+    "duc": 101444935,
     "phuongmanhduc123@gmail.com": 101444935,
     
     "tường vi": 101444942,
     "tuong vi": 101444942,
+    "vi": 101444942,
     "ngttuongvi25@gmail.com": 101444942,
     
     "nguyễn ngọc tráng": 101444960,
     "nguyen ngoc trang": 101444960,
+    "tráng": 101444960,
     "trangnn2908@gmail.com": 101444960,
     
     "lê sơn duy": 101446032,
     "le son duy": 101446032,
+    "duy": 101446032,
     "duyleson76@gmail.com": 101446032,
     
     "vunguyen": 107410184,
     "vu nguyen": 107410184,
+    "vũ": 107410184,
+    "vu": 107410184,
     "nguyenvu.dev.io@gmail.com": 107410184,
     
     "mỹ lê thế": 113639072,
     "my le the": 113639072,
+    "thế": 113639072,
+    "the": 113639072,
     "lethemi436@gmail.com": 113639072,
     
     "hien tran doan": 113642224,
@@ -668,7 +687,7 @@ Hãy thực hiện các yêu cầu sau dựa trên các template chuẩn trên:
 1. Phân loại cuộc thảo luận trên thành một trong ba loại task: Bug Report, Change Request (CR) hoặc Feature Task.
 2. Đặt tiêu đề (name) cho task tuân thủ đúng quy tắc đặt tiêu đề của loại task đó (ví dụ: `[BUG] [Tạm giữ Sale] - Lỗi crash...` hoặc `[CR] [Phiếu thu] - Đổi hiển thị...`). Hãy tự xác định Phân hệ/Module từ nội dung thảo luận.
 3. Soạn nội dung mô tả (description) cho task dưới định dạng Markdown, điền đầy đủ thông tin chi tiết được thảo luận trong thread vào đúng template chuẩn tương ứng của loại task đó.
-4. Kiểm tra xem trong cuộc thảo luận có nhắc đến việc gán (assign) task cho ai không (ví dụ: "assign cho khoa", "giao cho mạnh"). Nếu có, hãy trích xuất tên người đó. Nếu không có nhắc đến, hãy để null.
+4. Kiểm tra xem trong cuộc thảo luận có nhắc đến việc gán (assign) task cho ai không (ví dụ: "assign cho a khoa", "giao cho chị trang", "assign hùng"). Nếu có, hãy trích xuất tên người đó (bỏ qua các từ nhân xưng như a, anh, c, chị, em, bạn... chỉ lấy tên chính như "khoa", "trang", "hùng"). Nếu không có nhắc đến, hãy để null.
 
 Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
 {{
