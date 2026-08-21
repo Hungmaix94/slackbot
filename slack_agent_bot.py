@@ -698,7 +698,7 @@ Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
 Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json hay bất kỳ văn bản giải thích nào khác xung quanh.
 """
     try:
-        model = genai.GenerativeModel("gemini-3.1-flash-lite")
+        model = genai.GenerativeModel("gemini-3.7-flash")
         response = model.generate_content(prompt)
         text_resp = response.text.strip()
         if text_resp.startswith("```"):
@@ -1443,19 +1443,19 @@ if qa_skill:
 
 # Thiết lập các model Gemini 3.1 Flash Lite với system instructions riêng biệt
 model_default = genai.GenerativeModel(
-    model_name="gemini-3.1-flash-lite",
+    model_name="gemini-3.7-flash",
     system_instruction=system_instruction_default,
     tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_ba = genai.GenerativeModel(
-    model_name="gemini-3.1-flash-lite",
+    model_name="gemini-3.7-flash",
     system_instruction=system_instruction_ba,
     tools=[search_srs_files, read_srs_file, search_codebase_files, read_codebase_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_qa = genai.GenerativeModel(
-    model_name="gemini-3.1-flash-lite",
+    model_name="gemini-3.7-flash",
     system_instruction=system_instruction_qa,
     tools=[search_srs_files, read_srs_file, search_codebase_files, read_codebase_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
@@ -1522,7 +1522,7 @@ Câu hỏi: {query}
 Từ khóa:"""
     try:
         # Sử dụng model_default để generate nhanh
-        response = genai.GenerativeModel("gemini-3.1-flash-lite").generate_content(prompt)
+        response = genai.GenerativeModel("gemini-3.7-flash").generate_content(prompt)
         term = response.text.strip().replace('"', '').replace("'", "")
         print(f"🔑 Gemini extracted ClickUp search term: '{term}'")
         return term
@@ -1831,7 +1831,7 @@ async def main():
         return
         
     handler = AsyncSocketModeHandler(app, app_token)
-    print("⚡️ Slack Bot (Direct Local Agent) đang chạy bằng gemini-3.1-flash-lite...")
+    print("⚡️ Slack Bot (Direct Local Agent) đang chạy bằng gemini-3.7-flash...")
     await handler.start_async()
 
 if __name__ == "__main__":
