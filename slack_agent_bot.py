@@ -18,9 +18,8 @@ import requests
 SRS_DIR = os.environ.get("SRS_DIR")
 if not SRS_DIR:
     possible_paths = [
-        "/home/ubuntu/Glinteco/slackbot/docs",
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "docs"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../docs"),
+        "/home/ubuntu/Glinteco/all/srs/docs",
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "../all/srs/docs"),
         "/home/phamhung/Work/MVL/web/docs/srs/docs"
     ]
     for path in possible_paths:
@@ -698,7 +697,7 @@ Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
 Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json hay bất kỳ văn bản giải thích nào khác xung quanh.
 """
     try:
-        model = genai.GenerativeModel("gemini-3.7-flash")
+        model = genai.GenerativeModel("gemini-3.1-flash-lite")
         response = model.generate_content(prompt)
         text_resp = response.text.strip()
         if text_resp.startswith("```"):
@@ -1443,19 +1442,19 @@ if qa_skill:
 
 # Thiết lập các model Gemini 3.1 Flash Lite với system instructions riêng biệt
 model_default = genai.GenerativeModel(
-    model_name="gemini-3.7-flash",
+    model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_default,
     tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_ba = genai.GenerativeModel(
-    model_name="gemini-3.7-flash",
+    model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
     tools=[search_srs_files, read_srs_file, search_codebase_files, read_codebase_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_qa = genai.GenerativeModel(
-    model_name="gemini-3.7-flash",
+    model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
     tools=[search_srs_files, read_srs_file, search_codebase_files, read_codebase_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
@@ -1522,7 +1521,7 @@ Câu hỏi: {query}
 Từ khóa:"""
     try:
         # Sử dụng model_default để generate nhanh
-        response = genai.GenerativeModel("gemini-3.7-flash").generate_content(prompt)
+        response = genai.GenerativeModel("gemini-3.1-flash-lite").generate_content(prompt)
         term = response.text.strip().replace('"', '').replace("'", "")
         print(f"🔑 Gemini extracted ClickUp search term: '{term}'")
         return term
@@ -1690,8 +1689,6 @@ async def handle_mention(event, say, client):
             await say("⚠️ Tính năng tạo task ClickUp từ thread chỉ hoạt động khi bạn tag tôi và yêu cầu *trong một thread thảo luận* (hoặc reply).", thread_ts=target_thread_ts)
             return
             
-        await say("⏳ Đang phân tích nội dung thread và khởi tạo task trên ClickUp, vui lòng đợi trong giây lát...", thread_ts=target_thread_ts)
-        
         # Lấy Slack user ID của người ra lệnh
         requester_user_id = event.get("user")
         
@@ -1803,8 +1800,6 @@ async def handle_create_task_command(ack, body, say, client):
         await say("⚠️ Lệnh `/create-task` chỉ hoạt động khi được gọi bên trong một thread thảo luận của Slack.")
         return
         
-    await say("⏳ Đang phân tích nội dung thread và khởi tạo task trên ClickUp, vui lòng đợi...", thread_ts=thread_ts)
-    
     loop = asyncio.get_running_loop()
     result_text = await loop.run_in_executor(None, create_clickup_task_from_thread, channel_id, thread_ts, requester_user_id)
     await say(result_text, thread_ts=thread_ts)
@@ -1831,7 +1826,7 @@ async def main():
         return
         
     handler = AsyncSocketModeHandler(app, app_token)
-    print("⚡️ Slack Bot (Direct Local Agent) đang chạy bằng gemini-3.7-flash...")
+    print("⚡️ Slack Bot (Direct Local Agent) đang chạy bằng gemini-3.1-flash-lite...")
     await handler.start_async()
 
 if __name__ == "__main__":
