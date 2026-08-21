@@ -969,6 +969,64 @@ def slugify_vietnamese(text: str) -> str:
     text = re.sub(r'[\s-]+', '_', text).strip('_')
     return text or "export"
 
+
+def search_codebase_files(query: str, repo: str = "all") -> str:
+    """
+    Tìm kiếm nội dung file trong toàn bộ codebase bằng ripgrep.
+    Hữu ích để tìm kiếm API, hàm, component, hoặc logic code trong các repo: backend, web, mobile, v.v.
+
+    Args:
+        query: Chuỗi cần tìm kiếm (ví dụ: 'CommissionTransfer', 'def calculate_commission').
+        repo: Thư mục con cần tìm kiếm (mặc định 'all' để tìm trên toàn bộ codebase). Các tùy chọn: 'backend', 'web', 'mobile', 'srs', 'chat'.
+    """
+    import subprocess
+    base_dir = "/home/ubuntu/Glinteco/all"
+    if repo != "all":
+        base_dir = f"{base_dir}/{repo}"
+        
+    cmd = ["rg", "-n", query, base_dir]
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        out = result.stdout.strip()
+        if not out:
+            return "Không tìm thấy kết quả nào."
+        # Truncate if too long
+        lines = out.split('\n')
+        if len(lines) > 50:
+            out = '\n'.join(lines[:50]) + "\n... (còn tiếp, kết quả đã bị cắt bớt)"
+        return f"Kết quả tìm kiếm:\n{out}"
+    except subprocess.TimeoutExpired:
+        return "Tìm kiếm quá thời gian. Hãy thử từ khóa cụ thể hơn."
+    except Exception as e:
+        return f"Lỗi khi tìm kiếm: {e}"
+
+def read_codebase_file(filepath: str, start_line: int = 1, end_line: int = 200) -> str:
+    """
+    Đọc nội dung của một file code cụ thể trong codebase để phân tích.
+    Chỉ dùng khi đã biết đường dẫn file thông qua search_codebase_files hoặc mcp_search_graph.
+    
+    Args:
+        filepath: Đường dẫn tuyệt đối đến file cần đọc (phải nằm trong /home/ubuntu/Glinteco/all).
+        start_line: Dòng bắt đầu đọc (mặc định 1).
+        end_line: Dòng kết thúc đọc (mặc định 200). Tránh đọc quá dài.
+    """
+    if "/home/ubuntu/Glinteco/all" not in filepath and "srs" not in filepath:
+        # Tạm thời fix relative path
+        if not filepath.startswith("/"):
+            filepath = f"/home/ubuntu/Glinteco/all/{filepath}"
+            
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+        
+        start_idx = max(0, start_line - 1)
+        end_idx = min(len(lines), end_line)
+        content = "".join(lines[start_idx:end_idx])
+        return f"Nội dung file {filepath} (dòng {start_line}-{end_idx}):\n```\n{content}\n```"
+    except Exception as e:
+        return f"Lỗi khi đọc file: {e}"
+
+
 def load_skill_file(skill_name: str) -> str:
     """
     Nạp nội dung tệp quy tắc / AI skill từ thư mục .agents của dự án hoặc thư mục skills nội bộ.
@@ -1446,13 +1504,13 @@ model_default = genai.GenerativeModel(
 model_ba = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_ba,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
+    tools=[search_srs_files, read_srs_file, search_codebase_files, read_codebase_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 model_qa = genai.GenerativeModel(
     model_name="gemini-3.1-flash-lite",
     system_instruction=system_instruction_qa,
-    tools=[search_srs_files, read_srs_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
+    tools=[search_srs_files, read_srs_file, search_codebase_files, read_codebase_file, search_clickup_tasks, get_clickup_task, create_clickup_task_from_thread, mcp_index_repository, mcp_search_graph]
 )
 
 # Khởi tạo Async Slack App
