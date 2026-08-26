@@ -29,24 +29,134 @@ if not SRS_DIR:
     if not SRS_DIR:
         SRS_DIR = "/home/phamhung/Work/MVL/web/docs/srs/docs"
 
-# Mapping Slack user display name (lowercase) -> ClickUp user ID
-# Được lấy từ Slack team list match với ClickUp workspace members
-# Key: tên hiển thị trên Slack (lowercase, bỏ dấu hoặc có dấu đều match)
+# Mapping Slack user display name / handle / email / short name (lowercase) -> ClickUp user ID
+# Key: tên hiển thị trên Slack, email, username hoặc tên gọi ngắn gọn
+# Value: ClickUp user ID (number)
+# Mapping Slack user display name / handle / email / real_name (lowercase) -> ClickUp user ID
+# CHỈ dùng để phân giải từ Slack profile khi người dùng thực hiện Tag / Mention trên Slack (<@U...>)
 # Value: ClickUp user ID (number)
 SLACK_TO_CLICKUP_USERS = {
-    # Glinteco workspace members
+    # 1. Phương Mạnh Đức (Developer)
+    "phuong manh duc": 101444935,
+    "phương mạnh đức": 101444935,
+    "ducpm": 101444935,
+    "phuongmanhduc123@gmail.com": 101444935,
+    "ducpm@glinteco.com": 101444935,
+
+    # 2. Đức Hùng Phạm (hungpd)
+    "duc hung pham": 288804163,
+    "đức hùng phạm": 288804163,
+    "pham hung": 288804163,
+    "phạm hùng": 288804163,
+    "phamhung": 288804163,
+    "hungpd": 288804163,
+    "phamhung.bk94@gmail.com": 288804163,
+    "hungpd@glinteco.com": 288804163,
+
+    # 3. Trang Phạm (trangpt / PO / BA)
+    "trang pham": 101444933,
+    "trang phạm": 101444933,
+    "trangpt": 101444933,
+    "trangcao13@gmail.com": 101444933,
+    "trangpt@glinteco.com": 101444933,
+
+    # 4. Nhung Nguyễn (Creator / Admin)
     "nhung nguyễn": 107451239,
     "nhung nguyen": 107451239,
-    "duc hung pham": 288804163,
-    "phamhung": 288804163,
+    "nhungnt": 107451239,
+    "nhungnguyen.neu.ktc@gmail.com": 107451239,
+    "nhungnt@glinteco.com": 107451239,
+
+    # 5. Khoa Nguyễn (Leader / Admin)
+    "khoa nguyễn": 282755116,
+    "khoa nguyen": 282755116,
+    "khoanc": 282755116,
+    "khoa.nguyencong@glinteco.com": 282755116,
+
+    # 6. Trần Đoàn Hiển (Admin)
+    "td hien": 288725041,
+    "hien tran doan": 113642224,
+    "trần đoàn hiển": 113642224,
+    "hientd": 113642224,
+    "hientd1310@gmail.com": 113642224,
+    "hien.trandoan@glinteco.com": 288725041,
+
+    # 7. Mỹ Lê Thế (Developer)
+    "mỹ lê thế": 113639072,
+    "my le the": 113639072,
+    "lethemi": 113639072,
+    "lethemi436@gmail.com": 113639072,
+
+    # 8. Nguyễn Việt Mạnh
+    "nguyễn việt mạnh": 101407928,
+    "nguyen viet manh": 101407928,
+    "manhnv": 101407928,
+    "manh.nguyenviet@glinteco.com": 101407928,
+
+    # 9. Lê Quán Trần Hồng
+    "lê quán trần hồng": 95492241,
+    "le quan tran hong": 95492241,
+    "honglqt": 95492241,
+    "quantranhongle@gmail.com": 95492241,
+
+    # 10. Vũ Quang Hòa
+    "vu quang hoa": 55720511,
+    "vũ quang hòa": 55720511,
+    "hoavq": 55720511,
+    "hoa.vuquang@glinteco.com": 55720511,
+
+    # 11. Tường Vi
+    "tường vi": 101444942,
+    "tuong vi": 101444942,
+    "vitt": 101444942,
+    "ngttuongvi25@gmail.com": 101444942,
+
+    # 12. Nguyễn Ngọc Tráng
+    "nguyễn ngọc tráng": 101444960,
+    "nguyen ngoc trang": 101444960,
+    "trangnn": 101444960,
+    "trangnn2908@gmail.com": 101444960,
+
+    # 13. Lê Sơn Duy
+    "lê sơn duy": 101446032,
+    "le son duy": 101446032,
+    "duyls": 101446032,
+    "duyleson76@gmail.com": 101446032,
+
+    # 14. Vũ Nguyễn / Hoàng Vũ
+    "vunguyen": 107410184,
+    "vu nguyen": 107410184,
+    "hoàng vũ": 101516237,
+    "hoang vu": 101516237,
+    "nguyenvu.dev.io@gmail.com": 107410184,
+
+    # 15. Lê Khanh
+    "lê khanh": 101515555,
+    "le khanh": 101515555,
+    "letuankhanh22102005@gmail.com": 101515555,
+
+    # 16. Toàn TD
+    "toantd": 294767809,
+    "toanchan1402@gmail.com": 294767809,
+
+    # 17. Vũ Anh Đức (Guest)
+    "vu anh duc": 107450663,
+    "vũ anh đức": 107450663,
+    "vuduc": 107450663,
+    "vuduc07092005@gmail.com": 107450663,
+
+    # 18. Phùng Đức Anh (Guest)
+    "phùng đức anh": 113633326,
+    "phung duc anh": 113633326,
+    "nda1112f@gmail.com": 113633326,
+
+    # 19. Các thành viên khác
     "vy nguyễn thảo": 113605915,
     "vy nguyen thao": 113605915,
     "minh anh tran design": 101462889,
     "giang nguyen": 216194714,
     "giang nguyễn": 216194714,
     "minh quang": 113471173,
-    "vu anh duc": 107450663,
-    "vũ anh đức": 107450663,
     "minh anh": 113429058,
     "kien tuanho": 113418766,
     "hieu nguyen": 113410484,
@@ -58,82 +168,6 @@ SLACK_TO_CLICKUP_USERS = {
     "phong đỗ nguyễn hùng": 294612005,
     "phong do nguyen hung": 294612005,
     "hangnt": 107543173,
-    "vunguyen": 107410184,
-    "vu nguyen": 107410184,
-    "hoàng vũ": 101516237,
-    "hoang vu": 101516237,
-    "lê khanh": 101515555,
-    "le khanh": 101515555,
-    "toantd": 294767809,
-    "lê sơn duy": 101446032,
-    "le son duy": 101446032,
-    "hungpd": 288804163,
-    "hùng": 288804163,
-    "phamhung.bk94@gmail.com": 288804163,
-    
-    "nguyễn việt mạnh": 101407928,
-    "nguyen viet manh": 101407928,
-    "mạnh": 101407928,
-    "manh": 101407928,
-    "manh.nguyenviet@glinteco.com": 101407928,
-    
-    "lê quán trần hồng": 95492241,
-    "le quan tran hong": 95492241,
-    "hồng": 95492241,
-    "hong": 95492241,
-    
-    "vu quang hoa": 55720511,
-    "vũ quang hòa": 55720511,
-    "hòa": 55720511,
-    "hoa": 55720511,
-    
-    "td hien": 288725041,
-    "hiển": 288725041,
-    "hien": 288725041,
-    "hien.trandoan@glinteco.com": 288725041,
-    
-    "khoa nguyễn": 282755116,
-    "khoa nguyen": 282755116,
-    "khoa": 282755116,
-    "khoa.nguyencong@glinteco.com": 282755116,
-    
-    "trang pham": 101444933,
-    "trangcao13@gmail.com": 101444933,
-    
-    "phuong manh duc": 101444935,
-    "đức": 101444935,
-    "duc": 101444935,
-    "phuongmanhduc123@gmail.com": 101444935,
-    
-    "tường vi": 101444942,
-    "tuong vi": 101444942,
-    "vi": 101444942,
-    "ngttuongvi25@gmail.com": 101444942,
-    
-    "nguyễn ngọc tráng": 101444960,
-    "nguyen ngoc trang": 101444960,
-    "tráng": 101444960,
-    "trangnn2908@gmail.com": 101444960,
-    
-    "lê sơn duy": 101446032,
-    "le son duy": 101446032,
-    "duy": 101446032,
-    "duyleson76@gmail.com": 101446032,
-    
-    "vunguyen": 107410184,
-    "vu nguyen": 107410184,
-    "vũ": 107410184,
-    "vu": 107410184,
-    "nguyenvu.dev.io@gmail.com": 107410184,
-    
-    "mỹ lê thế": 113639072,
-    "my le the": 113639072,
-    "thế": 113639072,
-    "the": 113639072,
-    "lethemi436@gmail.com": 113639072,
-    
-    "hien tran doan": 113642224,
-    "hientd1310@gmail.com": 113642224,
 }
 
 # Nhung Nguyễn ClickUp user ID - dùng để kiểm tra có nên giữ follower không
@@ -142,11 +176,20 @@ NHUNG_NGUYEN_CLICKUP_ID = 107451239
 
 def resolve_clickup_user_id(slack_user_id: str) -> int | None:
     """
-    Lấy thông tin Slack user profile rồi match tên với danh sách ClickUp members.
-    Trả về ClickUp user ID nếu match, None nếu không tìm thấy.
+    Lấy thông tin Slack user profile qua Slack API rồi match với ClickUp members.
+    Chỉ match theo Slack User ID, email công ty/cá nhân, hoặc Slack username/display_name/real_name.
     """
     if not slack_user_id:
         return None
+    
+    clean_uid = re.sub(r'[^A-Z0-9]', '', slack_user_id.strip())
+    if not clean_uid:
+        return None
+        
+    # Match trực tiếp nếu clean_uid có trong bảng mapping
+    if clean_uid.lower() in SLACK_TO_CLICKUP_USERS:
+        return SLACK_TO_CLICKUP_USERS[clean_uid.lower()]
+        
     try:
         token = os.environ.get("SLACK_BOT_TOKEN")
         if not token:
@@ -154,18 +197,18 @@ def resolve_clickup_user_id(slack_user_id: str) -> int | None:
             return None
         headers = {"Authorization": f"Bearer {token}"}
         resp = requests.get(
-            f"https://slack.com/api/users.info?user={slack_user_id}",
+            f"https://slack.com/api/users.info?user={clean_uid}",
             headers=headers
         )
         data = resp.json()
         if not data.get("ok"):
-            print(f"❌ Lỗi lấy Slack user info: {data.get('error')}")
+            print(f"❌ Lỗi lấy Slack user info cho {clean_uid}: {data.get('error')}")
             return None
         
         user_obj = data.get("user", {})
         profile = user_obj.get("profile", {})
         
-        # Thử match theo thứ tự: email -> display_name -> real_name -> name
+        # Thử match theo thứ tự: email -> display_name -> real_name -> username
         candidates = [
             profile.get("email", ""),
             profile.get("display_name", ""),
@@ -178,23 +221,49 @@ def resolve_clickup_user_id(slack_user_id: str) -> int | None:
             name_lower = name.strip().lower()
             if name_lower and name_lower in SLACK_TO_CLICKUP_USERS:
                 clickup_id = SLACK_TO_CLICKUP_USERS[name_lower]
-                print(f"✅ Matched Slack user '{name}' -> ClickUp ID {clickup_id}")
+                print(f"✅ Matched Slack mention user '{name}' ({clean_uid}) -> ClickUp ID {clickup_id}")
                 return clickup_id
         
-        print(f"⚠️ Không tìm thấy ClickUp user match cho Slack user: {candidates}")
+        print(f"⚠️ Không tìm thấy ClickUp user match cho Slack user {clean_uid}: {candidates}")
         return None
     except Exception as e:
-        print(f"❌ Lỗi khi resolve ClickUp user ID: {e}")
+        print(f"❌ Lỗi khi resolve ClickUp user ID từ Slack mention: {e}")
         return None
 
-def resolve_clickup_user_by_name(name: str) -> int | None:
-    """Tìm ID ClickUp từ tên người dùng."""
-    if not name:
+def resolve_clickup_user_from_mention(mention_str: str) -> int | None:
+    """
+    Tìm ID ClickUp CHỈ từ chuỗi Slack Mention (dạng <@U12345> hoặc U12345).
+    Tuyệt đối không match theo tên thường tự do để tránh nhầm lẫn.
+    """
+    if not mention_str:
         return None
-    name_lower = name.strip().lower()
-    for key, clickup_id in SLACK_TO_CLICKUP_USERS.items():
-        if name_lower in key or key in name_lower:
-            return clickup_id
+        
+    match = re.search(r'U[A-Z0-9]{8,12}', str(mention_str))
+    if match:
+        slack_uid = match.group(0)
+        return resolve_clickup_user_id(slack_uid)
+        
+    return None
+
+def extract_mentioned_assignee_id(messages: list, bot_user_id: str = None) -> str | None:
+    """
+    Trích xuất Slack User ID của người được assign qua Slack mention trong thread.
+    """
+    for msg in reversed(messages):
+        text = msg.get("text", "")
+        # 1. Tìm mention đi liền sau các từ khóa assign / giao cho / cho / gán
+        match = re.search(r'(?:assign|giao\s*cho|giao|cho|assignee|gán\s*cho|gán)\s*[:=]?\s*<@([A-Z0-9]+)>', text, re.IGNORECASE)
+        if match:
+            uid = match.group(1)
+            if uid != bot_user_id:
+                return uid
+        
+        # 2. Nếu trong tin nhắn có tag mention khác ngoài bot
+        all_mentions = re.findall(r'<@([A-Z0-9]+)>', text)
+        other_mentions = [uid for uid in all_mentions if uid != bot_user_id]
+        if other_mentions:
+            return other_mentions[0]
+            
     return None
 
 def call_clickup_mcp(tool_name, arguments):
@@ -686,14 +755,14 @@ Hãy thực hiện các yêu cầu sau dựa trên các template chuẩn trên:
 1. Phân loại cuộc thảo luận trên thành một trong ba loại task: Bug Report, Change Request (CR) hoặc Feature Task.
 2. Đặt tiêu đề (name) cho task tuân thủ đúng quy tắc đặt tiêu đề của loại task đó (ví dụ: `[BUG] [Tạm giữ Sale] - Lỗi crash...` hoặc `[CR] [Phiếu thu] - Đổi hiển thị...`). Hãy tự xác định Phân hệ/Module từ nội dung thảo luận.
 3. Soạn nội dung mô tả (description) cho task dưới định dạng Markdown, điền đầy đủ thông tin chi tiết được thảo luận trong thread vào đúng template chuẩn tương ứng của loại task đó.
-4. Kiểm tra xem trong cuộc thảo luận có nhắc đến việc gán (assign) task cho ai không (ví dụ: "assign cho a khoa", "giao cho chị trang", "assign hùng"). Nếu có, hãy trích xuất tên người đó (bỏ qua các từ nhân xưng như a, anh, c, chị, em, bạn... chỉ lấy tên chính như "khoa", "trang", "hùng"). Nếu không có nhắc đến, hãy để null.
+4. Kiểm tra xem trong cuộc thảo luận có tag/mention người dùng nào trên Slack (dạng <@U...>) để giao việc/assign task không. Nếu có, hãy trích xuất mã Slack User ID đó (dạng U... hoặc <@U...>). TUYỆT ĐỐI KHÔNG trích xuất tên chữ thường nếu không được tag bằng Slack mention. Nếu không có Slack mention nào được giao việc, hãy để null.
 
 Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
-{{
+{
   "name": "Tiêu đề task đúng cấu trúc đặt tên",
   "description": "Nội dung mô tả chi tiết điền theo đúng template tương ứng bằng markdown",
-  "assignee": "Tên người được assign hoặc null"
-}}
+  "assignee": "Slack User ID được mention (ví dụ: 'U01234567') hoặc null"
+}
 Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json hay bất kỳ văn bản giải thích nào khác xung quanh.
 """
     try:
@@ -824,15 +893,25 @@ def create_clickup_task_from_thread(channel_id: str, thread_ts: str, slack_user_
             "markdown_description": task_desc,
         }
         
-        # Gắn assignee
+        # Gắn assignee (CHỈ match theo Slack mention)
         assignees_to_add = []
-        if explicit_assignee:
-            explicit_clickup_id = resolve_clickup_user_by_name(explicit_assignee)
+        
+        # 1. Trích xuất Slack User ID từ mention trong thread messages hoặc explicit_assignee
+        mentioned_slack_uid = extract_mentioned_assignee_id(messages)
+        if not mentioned_slack_uid and explicit_assignee:
+            mention_match = re.search(r'U[A-Z0-9]{8,12}', str(explicit_assignee))
+            if mention_match:
+                mentioned_slack_uid = mention_match.group(0)
+                
+        if mentioned_slack_uid:
+            explicit_clickup_id = resolve_clickup_user_from_mention(mentioned_slack_uid)
             if explicit_clickup_id:
                 assignees_to_add.append(explicit_clickup_id)
-                print(f"👤 Gắn assignee dựa trên yêu cầu trong thread: {explicit_assignee} -> {explicit_clickup_id}")
+                print(f"👤 Gắn assignee từ Slack mention <@{mentioned_slack_uid}> -> ClickUp ID {explicit_clickup_id}")
+            else:
+                print(f"⚠️ Slack user <@{mentioned_slack_uid}> chưa được ánh xạ sang ClickUp ID")
         
-        # Fallback nếu không có explicit assignee hoặc không tìm thấy
+        # Fallback nếu không có explicit mention assignee
         if not assignees_to_add and clickup_user_id:
             assignees_to_add.append(clickup_user_id)
             print(f"👤 Gắn assignee mặc định cho người tạo task: {clickup_user_id}")
@@ -1684,7 +1763,7 @@ async def handle_mention(event, say, client):
         sub_query = re.sub(r"^/?testcase\s*", "", query, flags=re.IGNORECASE).strip()
         query = f"Hãy sinh chi tiết đặc tả kịch bản test UAT cho yêu cầu sau: {sub_query}"
     elif query.startswith("/create_task") or query.startswith("/create-task") or query.startswith("/clickup-task") or \
-         re.search(r'(tạo|create|log)\s*(1\s*|một\s*|thêm\s*)?(task|bug|lỗi)\b', query.lower()) or \
+         re.search(r'(tạo|create|log)\s*(1\s*|một\s*|thêm\s*)?(task|bug|lỗi|cr|feature)\b', query.lower()) or \
          "clickup task" in query.lower():
          
         if not thread_ts:
