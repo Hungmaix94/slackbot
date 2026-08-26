@@ -758,11 +758,11 @@ Hãy thực hiện các yêu cầu sau dựa trên các template chuẩn trên:
 4. Kiểm tra xem trong cuộc thảo luận có tag/mention người dùng nào trên Slack (dạng <@U...>) để giao việc/assign task không. Nếu có, hãy trích xuất mã Slack User ID đó (dạng U... hoặc <@U...>). TUYỆT ĐỐI KHÔNG trích xuất tên chữ thường nếu không được tag bằng Slack mention. Nếu không có Slack mention nào được giao việc, hãy để null.
 
 Hãy trả về kết quả dưới dạng JSON có cấu trúc như sau:
-{
+{{
   "name": "Tiêu đề task đúng cấu trúc đặt tên",
   "description": "Nội dung mô tả chi tiết điền theo đúng template tương ứng bằng markdown",
   "assignee": "Slack User ID được mention (ví dụ: 'U01234567') hoặc null"
-}
+}}
 Chỉ trả về duy nhất chuỗi JSON hợp lệ, không có thẻ ```json hay bất kỳ văn bản giải thích nào khác xung quanh.
 """
     try:
