@@ -80,17 +80,25 @@ export async function resolvePlaneProject(params: {
   const { text = "", channelId, env } = params;
   const textLower = text.toLowerCase();
 
-  // 1. Kiểm tra từ khóa rõ ràng trong text
-  for (const proj of KNOWN_PLANE_PROJECTS) {
+  // 1. Kiểm tra từ khóa rõ ràng trong text (Ưu tiên các mã dài trước, ví dụ MVLCTV trước MVL)
+  const sortedProjects = [...KNOWN_PLANE_PROJECTS].sort(
+    (a, b) => b.identifier.length - a.identifier.length
+  );
+
+  for (const proj of sortedProjects) {
     const idLower = proj.identifier.toLowerCase();
-    // Bắt các pattern: [MVL], project=MVL, project: MVL, dự án MVL, #MVL
-    const regex = new RegExp(`(?:\\[|project\\s*[:=]\\s*|dự\\s*án\\s+|#)${idLower}\\b`, "i");
+    // Bắt các pattern: [MVLCTV], project=MVL, project: MVL, dự án MVL, #MVL
+    const regex = new RegExp(`(?:\\[|project\\s*[:=]\\s*|dự\\s*án\\s+|#)${idLower}(?:\\]|\\b)`, "i");
     if (regex.test(text) || textLower.includes(`[${idLower}]`)) {
       return proj;
     }
   }
 
-  // So khớp theo tên thông dụng
+  // So khớp theo tên thông dụng (Ưu tiên Phase 3 trước)
+  if (textLower.includes("phase 3") || textLower.includes("giai đoạn 3") || textLower.includes("mvlctv")) {
+    const p = KNOWN_PLANE_PROJECTS.find((p) => p.identifier === "MVLCTV");
+    if (p) return p;
+  }
   if (textLower.includes("phase 1") || textLower.includes("phase 2") || textLower.includes("giai đoạn 1") || textLower.includes("giai đoạn 2")) {
     const p = KNOWN_PLANE_PROJECTS.find((p) => p.identifier === "MVL");
     if (p) return p;
@@ -109,10 +117,6 @@ export async function resolvePlaneProject(params: {
   }
   if (textLower.includes("devops") || textLower.includes("ci/cd") || textLower.includes("server") || textLower.includes("hạ tầng")) {
     const p = KNOWN_PLANE_PROJECTS.find((p) => p.identifier === "DEVOPS");
-    if (p) return p;
-  }
-  if (textLower.includes("phase 3") || textLower.includes("giai đoạn 3") || textLower.includes("mvlctv")) {
-    const p = KNOWN_PLANE_PROJECTS.find((p) => p.identifier === "MVLCTV");
     if (p) return p;
   }
 

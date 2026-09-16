@@ -488,9 +488,14 @@ export class AgentOrchestrator {
     }
 
     // 2. Xác định dự án mục tiêu (Dynamic Project Resolution)
-    const threadFullText = [commandQuery, ...messages.map((m) => m.text || "")].filter(Boolean).join(" ");
+    // Chỉ đọc các tin nhắn từ người dùng (loại bỏ tin nhắn của bot để tránh match nhầm ví dụ)
+    const userMessagesText = messages
+      .filter((m) => !m.bot_id && m.subtype !== "bot_message")
+      .map((m) => m.text || "")
+      .join(" ");
+
     const targetProject = await resolvePlaneProject({
-      text: threadFullText,
+      text: `${commandQuery || ""} ${userMessagesText}`,
       channelId,
       env: this.env,
       planeClient: this.plane,
@@ -618,12 +623,11 @@ export class AgentOrchestrator {
       evidenceFiles,
     });
 
-    // 8. Tạo task trên Plane
+    // 8. Tạo task trên Plane (để state undefined để Plane tự áp dụng default state hợp lệ của từng dự án)
     const createdIssue = await this.plane.createIssue(projectId, {
       name: taskJson.taskName,
       description_html: descriptionHtml,
       priority: taskJson.severity,
-      state: this.env.PLANE_DEFAULT_STATE_ID || "74a0a446-68bf-437b-9159-a602b67dbc7b", // Backlog
       assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
     });
 
