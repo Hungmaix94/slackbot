@@ -74,9 +74,6 @@ export class PlaneClient {
   }
 
   getIssueWebUrl(projectId: string, issueId: string, projectIdentifier?: string, sequenceId?: number): string {
-    if (projectIdentifier && sequenceId) {
-      return `${this.hostUrl}/${this.workspaceSlug}/browse/${projectIdentifier}-${sequenceId}/`;
-    }
     return `${this.hostUrl}/${this.workspaceSlug}/projects/${projectId}/issues/${issueId}`;
   }
 
