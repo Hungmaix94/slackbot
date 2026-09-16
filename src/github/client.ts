@@ -53,11 +53,17 @@ export class GitHubClient {
    * Chuyển đổi từ khóa nghiệp vụ tiếng Việt sang từ khóa kỹ thuật trong codebase
    */
   private normalizeSearchQuery(rawQuery: string): string {
-    const q = rawQuery.toLowerCase();
+    const trimmed = rawQuery.trim();
+    const q = trimmed.toLowerCase();
 
-    // Nếu query đã là từ khóa code tiếng Anh, giữ nguyên
-    if (/^[a-zA-Z0-9_\.\-]+$/.test(rawQuery.trim())) {
-      return rawQuery.trim();
+    // 0. Nếu query đã là cụm từ code/lỗi tiếng Anh (hoặc trong ngoặc kép), giữ nguyên từ khóa kỹ thuật
+    const hasVietnameseAccent = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(trimmed);
+    if (!hasVietnameseAccent && (trimmed.includes(" ") || /^[a-zA-Z0-9_\.\-]+$/.test(trimmed))) {
+      // Loại bỏ các ký tự đặc biệt gây lỗi cú pháp GitHub Search, chỉ giữ từ và ngoặc kép
+      const cleanEnglish = trimmed.replace(/[^\w\s\.\_\-]/g, " ").trim();
+      if (cleanEnglish.length > 3) {
+        return cleanEnglish;
+      }
     }
 
     // 1. Phức hợp: Đối chiếu CĐT & Hóa đơn bán ra / Kỳ hoa hồng
@@ -65,6 +71,14 @@ export class GitHubClient {
     const hasInvoice = q.includes("hóa đơn") || q.includes("hoa don") || q.includes("invoice") || q.includes("bán ra") || q.includes("ban ra");
     const hasCdt = q.includes("cđt") || q.includes("cdt") || q.includes("chủ đầu tư") || q.includes("chu dau tu") || q.includes("investor");
     const hasPeriod = q.includes("kỳ") || q.includes("ky") || q.includes("hoa hồng") || q.includes("hoa hong") || q.includes("tháng 8") || q.includes("tháng 9") || q.includes("thang 8") || q.includes("thang 9");
+    const hasSlk = q.includes("sàn liên kết") || q.includes("san lien ket") || q.includes("linked_exchange") || q.includes("linked-exchange") || q.includes("slk");
+
+    if (hasSlk) {
+      if (q.includes("ghi sổ") || q.includes("post") || q.includes("draft") || q.includes("nháp")) {
+        return "linked_exchange_dept_commission_service _attach_summary_line";
+      }
+      return "linked_exchange";
+    }
 
     if (hasRecon && (hasInvoice || hasPeriod)) {
       return "create_from_pdcdt sales_invoice";
@@ -83,7 +97,11 @@ export class GitHubClient {
     }
 
     if (q.includes("tạm ứng") || q.includes("tam ung") || q.includes("hoàn ứng") || q.includes("hoan ung") || q.includes("advance")) {
-      return "investor_advance";
+      return "commission_advance";
+    }
+
+    if (q.includes("tạm giữ") || q.includes("tam giu") || q.includes("hold")) {
+      return "commission_hold";
     }
 
     if (hasPeriod) {
@@ -143,6 +161,15 @@ export class GitHubClient {
       }
     }
 
+    // Ưu tiên sắp xếp file mã nguồn thực tế (.py, .ts, .tsx, .js) trước file tài liệu (.md, .po)
+    items.sort((a: any, b: any) => {
+      const isCodeA = /\.(py|ts|tsx|js|jsx)$/i.test(a.path);
+      const isCodeB = /\.(py|ts|tsx|js|jsx)$/i.test(b.path);
+      if (isCodeA && !isCodeB) return -1;
+      if (!isCodeA && isCodeB) return 1;
+      return 0;
+    });
+
     return items.map((item: any) => ({
       path: item.path,
       url: item.html_url,
@@ -156,7 +183,7 @@ export class GitHubClient {
   async readFile(
     repoAlias: string,
     filePath: string,
-    options?: { ref?: string; startLine?: number; endLine?: number }
+    options?: { ref?: string; startLine?: number; endLine?: number; searchKeyword?: string }
   ): Promise<GitHubFileResult> {
     const fullRepo = this.resolveRepo(repoAlias);
     const ref = options?.ref || "master";
@@ -197,11 +224,24 @@ export class GitHubClient {
     const lines = fullContent.split("\n");
     const totalLines = lines.length;
 
+    let computedStart = options?.startLine;
+    let computedEnd = options?.endLine;
+
+    // Nếu có từ khóa tìm kiếm và chưa có dòng chỉ định, tự động định vị dòng chứa từ khóa
+    if (options?.searchKeyword && computedStart === undefined && computedEnd === undefined) {
+      const kw = options.searchKeyword.toLowerCase();
+      const matchIdx = lines.findIndex((l) => l.toLowerCase().includes(kw));
+      if (matchIdx !== -1) {
+        computedStart = Math.max(1, matchIdx - 20);
+        computedEnd = Math.min(totalLines, matchIdx + 45);
+      }
+    }
+
     let outputLines = lines;
     let note = "";
-    if (options?.startLine !== undefined || options?.endLine !== undefined) {
-      const start = Math.max(1, options?.startLine || 1);
-      const end = Math.min(totalLines, options?.endLine || totalLines);
+    if (computedStart !== undefined || computedEnd !== undefined) {
+      const start = Math.max(1, computedStart || 1);
+      const end = Math.min(totalLines, computedEnd || totalLines);
       outputLines = lines.slice(start - 1, end);
     } else if (totalLines > 250) {
       outputLines = lines.slice(0, 250);
@@ -214,8 +254,8 @@ export class GitHubClient {
       ref,
       content: outputLines.join("\n") + note,
       totalLines,
-      startLine: options?.startLine || 1,
-      endLine: options?.endLine || (outputLines.length),
+      startLine: computedStart || 1,
+      endLine: computedEnd || outputLines.length,
     };
   }
 

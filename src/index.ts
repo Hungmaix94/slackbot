@@ -277,7 +277,7 @@ app.post("/test/query", async (c) => {
   const tools = codeContext ? undefined : (github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
 
   let responseText = "";
-  const maxTurns = codeContext ? 1 : 2;
+  const maxTurns = codeContext ? 1 : 3;
   let currentTurn = 0;
   const toolTrace: any[] = [];
 

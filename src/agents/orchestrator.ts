@@ -247,7 +247,7 @@ export class AgentOrchestrator {
       // Nếu đã có codeContext nạp sẵn, không cần dùng tool gọi lại để tránh timeout 30s của Workers
       const tools = codeContext ? undefined : (this.github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
       let responseText = "";
-      const maxTurns = codeContext ? 1 : 2;
+      const maxTurns = codeContext ? 1 : 3;
       let currentTurn = 0;
 
       while (currentTurn < maxTurns) {
@@ -623,11 +623,27 @@ export class AgentOrchestrator {
       evidenceFiles,
     });
 
-    // 8. Tạo task trên Plane (để state undefined để Plane tự áp dụng default state hợp lệ của từng dự án)
+    // 8. Tạo task trên Plane (tự động truy vấn state mặc định / backlog hợp lệ của chính dự án đó)
+    let stateId: string | undefined = undefined;
+    try {
+      const states = await this.plane.getProjectStates(projectId);
+      const defaultState =
+        states.find((s) => s.default) ||
+        states.find((s) => s.group === "backlog") ||
+        states.find((s) => s.group === "unstarted") ||
+        states[0];
+      if (defaultState) {
+        stateId = defaultState.id;
+      }
+    } catch (stateErr) {
+      console.warn("Lỗi lấy default state cho project:", stateErr);
+    }
+
     const createdIssue = await this.plane.createIssue(projectId, {
       name: taskJson.taskName,
       description_html: descriptionHtml,
       priority: taskJson.severity,
+      state: stateId,
       assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
     });
 

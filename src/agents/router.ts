@@ -78,7 +78,7 @@ export function classifyIntent(query: string): AgentIntent {
     return "SEARCH_PLANE";
   }
 
-  // 3. Tra cứu kỹ thuật / Codebase / API / Model
+  // 3. Tra cứu kỹ thuật / Codebase / API / Model / Chẩn đoán lỗi hệ thống
   if (
     q.startsWith("/code") ||
     q.startsWith("/dev") ||
@@ -110,7 +110,30 @@ export function classifyIntent(query: string): AgentIntent {
     q.includes("sai lệch") ||
     q.includes("bị nhảy") ||
     q.includes("tự động tạo") ||
-    q.includes("lỗi logic")
+    q.includes("lỗi logic") ||
+    q.includes("báo lỗi") ||
+    q.includes("lỗi này") ||
+    q.includes("lỗi gì") ||
+    q.includes("nghĩa là gì") ||
+    q.includes("gặp lỗi") ||
+    q.includes("bị lỗi") ||
+    q.includes("validation_error") ||
+    q.includes("invalid_state_transition") ||
+    q.includes("success: false") ||
+    q.includes("success\": false") ||
+    q.includes("exception") ||
+    q.includes("traceback") ||
+    q.includes("stack trace") ||
+    q.includes("status 500") ||
+    q.includes("status 400") ||
+    q.includes("status 403") ||
+    q.includes("status 404") ||
+    q.includes("status 422") ||
+    q.includes("must be draft") ||
+    q.includes("must be") ||
+    /\{.*"error".*\}/i.test(query) ||
+    /\{.*"detail".*\}/i.test(query) ||
+    /\{.*"type":\s*"validation_error"/i.test(query)
   ) {
     return "CODE_DEV";
   }
