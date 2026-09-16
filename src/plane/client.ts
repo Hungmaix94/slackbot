@@ -119,6 +119,21 @@ export class PlaneClient {
     return Array.isArray(data) ? data : data.results || [];
   }
 
+  async getWorkspaceMembers(): Promise<PlaneUser[]> {
+    const res = await fetch(
+      `${this.hostUrl}/api/v1/workspaces/${this.workspaceSlug}/members/`,
+      {
+        method: "GET",
+        headers: this.headers,
+      }
+    );
+    if (!res.ok) {
+      throw new Error(`Plane API getWorkspaceMembers failed: ${res.status} ${res.statusText}`);
+    }
+    const data: any = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
   async getIssues(
     projectId: string,
     options?: { per_page?: number; order_by?: string }

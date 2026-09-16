@@ -417,8 +417,68 @@ export class AgentOrchestrator {
       return;
     }
 
-    // 2. Nhận diện người tạo trên Plane
-    const userMatch = await resolvePlaneUserId(slackUserId, this.slack, this.env);
+    // 2. Nhận diện người tạo / assignees trên Plane
+    const userMatch = await resolvePlaneUserId(
+      slackUserId,
+      this.slack,
+      this.env,
+      this.plane,
+      projectId
+    );
+
+    // Quét toàn bộ mentions trong thread để phát hiện người được giao việc / xử lý lỗi
+    const mentionRegex = /<@([A-Z0-9]+)>/g;
+    const candidateSlackUserIds = new Set<string>();
+
+    for (const msg of messages) {
+      if (msg.text) {
+        let match: RegExpExecArray | null;
+        while ((match = mentionRegex.exec(msg.text)) !== null) {
+          const mentionedId = match[1];
+          if (mentionedId && mentionedId !== slackUserId) {
+            candidateSlackUserIds.add(mentionedId);
+          }
+        }
+      }
+    }
+
+    const resolvedAssignees: { id: string; name: string }[] = [];
+
+    // Ưu tiên resolve các user được tag trong thread
+    for (const mSlackId of candidateSlackUserIds) {
+      const resolved = await resolvePlaneUserId(
+        mSlackId,
+        this.slack,
+        this.env,
+        this.plane,
+        projectId
+      );
+      if (resolved.id && !resolvedAssignees.some((a) => a.id === resolved.id)) {
+        resolvedAssignees.push({ id: resolved.id, name: resolved.name });
+      }
+    }
+
+    // Nếu không có ai được tag hoặc không map được ai từ tag, gán cho người yêu cầu (userMatch)
+    if (resolvedAssignees.length === 0 && userMatch.id) {
+      resolvedAssignees.push({ id: userMatch.id, name: userMatch.name });
+    }
+
+    // Fallback: nếu người yêu cầu cũng chưa map được, thử fallback người gửi tin nhắn đầu tiên của thread
+    if (resolvedAssignees.length === 0 && messages[0]?.user && messages[0].user !== slackUserId) {
+      const reporterMatch = await resolvePlaneUserId(
+        messages[0].user,
+        this.slack,
+        this.env,
+        this.plane,
+        projectId
+      );
+      if (reporterMatch.id) {
+        resolvedAssignees.push({ id: reporterMatch.id, name: reporterMatch.name });
+      }
+    }
+
+    const assigneeIds = resolvedAssignees.map((a) => a.id);
+    const assigneeDisplayNames = resolvedAssignees.map((a) => a.name).filter(Boolean).join(", ");
 
     // 3. Tóm tắt nội dung bằng Gemini / AI
     const threadText = messages.map((m) => `${m.user || "User"}: ${m.text || ""}`).join("\n");
@@ -519,7 +579,7 @@ ${threadText}`;
       description_html: descriptionHtml,
       priority: planePriority,
       state: this.env.PLANE_DEFAULT_STATE_ID || "74a0a446-68bf-437b-9159-a602b67dbc7b", // Backlog
-      assignees: userMatch.id ? [userMatch.id] : undefined,
+      assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
     });
 
     // 8. Nếu có file đính kèm từ Slack, thêm comment vào Plane issue
@@ -550,7 +610,7 @@ ${threadText}`;
       displayId,
       name: createdIssue.name,
       url: issueUrl,
-      assigneeName: userMatch.name,
+      assigneeName: assigneeDisplayNames || userMatch.name || "Chưa gán",
       status: "Backlog",
       systemName: "Plane",
       attachmentsCount: evidenceFiles.length,
