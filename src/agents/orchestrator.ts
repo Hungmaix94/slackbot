@@ -2,6 +2,7 @@ import { Env } from "../config/env";
 import { SlackClient } from "../slack/client";
 import { SrsSearchService } from "../rag/search";
 import { ClickUpClient } from "../clickup/client";
+import { PlaneClient } from "../plane/client";
 import { GitHubClient } from "../github/client";
 import { GeminiClient, GeminiContent, GeminiFunctionDeclaration } from "../ai/gemini";
 import { WorkersAiService, WorkersAiClient } from "../ai/workers-ai";
@@ -16,9 +17,9 @@ import {
 import { parseAllMarkdownTables } from "../utils/markdown";
 import { generateExcelFromTables } from "../excel/generator";
 import { createAnswerBlocks, createProgressBlock, createTaskCreatedCard } from "../slack/blocks";
-import { resolveClickUpUserId } from "../slack/user-mapping";
-import { checkDuplicateClickUpTasks } from "../clickup/duplicates";
-import { buildBugTaskDescription } from "../clickup/task-builder";
+import { resolvePlaneUserId } from "../slack/user-mapping";
+import { checkDuplicatePlaneIssues } from "../plane/duplicates";
+import { buildPlaneBugHtmlDescription } from "../plane/task-builder";
 
 export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
   {
@@ -89,6 +90,7 @@ export class AgentOrchestrator {
   private env: Env;
   private slack: SlackClient;
   private srsSearch: SrsSearchService;
+  private plane?: PlaneClient;
   private clickup?: ClickUpClient;
   private github?: GitHubClient;
 
@@ -96,6 +98,14 @@ export class AgentOrchestrator {
     this.env = env;
     this.slack = new SlackClient(env.SLACK_BOT_TOKEN);
     this.srsSearch = new SrsSearchService(env);
+    const planeKey = env.PLANE_API_KEY || "plane_api_dfeaa88d10704e32a1d15e45d0006318";
+    if (planeKey) {
+      this.plane = new PlaneClient(
+        planeKey,
+        env.PLANE_API_HOST_URL || "https://pm.glinteco.com",
+        env.PLANE_WORKSPACE_SLUG || "glinteco"
+      );
+    }
     if (env.CLICKUP_API_TOKEN) {
       this.clickup = new ClickUpClient(env.CLICKUP_API_TOKEN);
     }
@@ -127,15 +137,15 @@ export class AgentOrchestrator {
     try {
       const intent = classifyIntent(query);
 
-      // XỬ LÝ INTENT: TẠO TASK TRÊN CLICKUP TỪ THREAD
+      // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
       if (intent === "CREATE_TASK") {
         await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsg.ts);
         return;
       }
 
-      // XỬ LÝ INTENT: TRA CỨU BUG TRÊN CLICKUP
-      if (intent === "SEARCH_CLICKUP") {
-        await this.handleSearchClickup(channelId, targetThreadTs, query, progressMsg.ts);
+      // XỬ LÝ INTENT: TRA CỨU BUG TRÊN PLANE
+      if (intent === "SEARCH_PLANE" || intent === "SEARCH_CLICKUP") {
+        await this.handleSearchPlane(channelId, targetThreadTs, query, progressMsg.ts);
         return;
       }
 
@@ -384,16 +394,17 @@ export class AgentOrchestrator {
     slackUserId: string,
     progressMsgTs: string
   ): Promise<void> {
-    if (!this.clickup) {
+    if (!this.plane) {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        "⚠️ Chưa cấu hình ClickUp API Token trong môi trường."
+        "⚠️ Chưa cấu hình Plane API Key trong môi trường."
       );
       return;
     }
 
-    const listId = this.env.CLICKUP_DEFAULT_LIST_ID || "901818745715";
+    const projectId = this.env.PLANE_DEFAULT_PROJECT_ID || "e92f7ba8-0db9-487f-a21c-13712d226eb8";
+    const projectIdentifier = "MVLCTV";
 
     // 1. Lấy toàn bộ tin nhắn trong thread
     const messages = await this.slack.getConversationReplies(channelId, threadTs);
@@ -406,14 +417,17 @@ export class AgentOrchestrator {
       return;
     }
 
-    // 2. Nhận diện người tạo
-    const userMatch = await resolveClickUpUserId(slackUserId, this.slack, this.env);
+    // 2. Nhận diện người tạo trên Plane
+    const userMatch = await resolvePlaneUserId(slackUserId, this.slack, this.env);
 
-    // 3. Tóm tắt nội dung bằng Gemini
+    // 3. Tóm tắt nội dung bằng Gemini / AI
     const threadText = messages.map((m) => `${m.user || "User"}: ${m.text || ""}`).join("\n");
-    const gemini = new GeminiClient(this.env);
+    const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
+    const aiClient = useWorkersAi && this.env.AI
+      ? new WorkersAiClient(this.env)
+      : new GeminiClient(this.env);
 
-    const prompt = `Phân tích đoạn thảo luận sau từ Slack thread và trích xuất thông tin tạo Bug Report trên ClickUp theo định dạng JSON:
+    const prompt = `Phân tích đoạn thảo luận sau từ Slack thread và trích xuất thông tin tạo Bug Report trên hệ thống quản lý Plane theo định dạng JSON:
 {
   "taskName": "[BUG] [Tên phân hệ] - Mô tả lỗi ngắn gọn (dưới 70 ký tự)",
   "moduleName": "Tên phân hệ (ví dụ: Quản lý Quỹ, Tạm ứng, Đặt cọc, HRM...)",
@@ -426,7 +440,7 @@ export class AgentOrchestrator {
 Nội dung thảo luận:
 ${threadText}`;
 
-    const parsedRes = await gemini.generateContent({
+    const parsedRes = await aiClient.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
       temperature: 0.1,
     });
@@ -446,17 +460,38 @@ ${threadText}`;
       };
     }
 
-    // 4. Kiểm tra xem có bug nào bị trùng không (Smart Duplicate Check)
-    const duplicateCheck = await checkDuplicateClickUpTasks(this.clickup, listId, taskJson.taskName);
+    // 4. Kiểm tra xem có bug nào bị trùng không (Smart Duplicate Check trên Plane)
+    const duplicateCheck = await checkDuplicatePlaneIssues(
+      this.plane,
+      projectId,
+      taskJson.taskName,
+      projectIdentifier
+    );
     let duplicateWarning = "";
     if (duplicateCheck.hasDuplicate) {
-      const dup = duplicateCheck.duplicateTasks[0];
-      duplicateWarning = `\n> ⚠️ *Cảnh báo trùng lặp:* Phát hiện task tương tự trên ClickUp: <${dup.url}|[${dup.id}] ${dup.name}> (${dup.status})`;
+      const dup = duplicateCheck.duplicateIssues[0];
+      const dupDisplay = dup.sequenceId ? `${projectIdentifier}-${dup.sequenceId}` : dup.id.slice(0, 8);
+      duplicateWarning = `\n> ⚠️ *Cảnh báo trùng lặp:* Phát hiện task tương tự trên Plane: <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
     }
 
-    // 5. Tạo mô tả task chuẩn theo template MVL
+    // 5. Thu thập file đính kèm từ Slack
+    const evidenceFiles: { name: string; url: string }[] = [];
+    for (const msg of messages) {
+      if (msg.files && Array.isArray(msg.files)) {
+        for (const f of msg.files) {
+          if (f.url_private) {
+            evidenceFiles.push({
+              name: f.name || "Tệp đính kèm Slack",
+              url: f.permalink || f.url_private,
+            });
+          }
+        }
+      }
+    }
+
+    // 6. Tạo mô tả task chuẩn theo HTML cho Plane
     const slackThreadUrl = `https://slack.com/app_redirect?channel=${channelId}&thread_ts=${threadTs}`;
-    const description = buildBugTaskDescription({
+    const descriptionHtml = buildPlaneBugHtmlDescription({
       moduleName: taskJson.moduleName,
       environment: "Staging",
       deviceInfo: "Chrome / Web",
@@ -466,45 +501,59 @@ ${threadText}`;
       expectedBehavior: taskJson.expectedBehavior,
       slackThreadUrl,
       slackMetadata: `channel_id=${channelId} thread_ts=${threadTs}`,
+      evidenceFiles,
     });
 
-    // 6. Tạo task trên ClickUp
-    const createdTask = await this.clickup.createTask(listId, {
+    // 7. Tạo task trên Plane
+    const priorityMap: Record<string, "urgent" | "high" | "medium" | "low" | "none"> = {
+      blocker: "urgent",
+      critical: "urgent",
+      major: "high",
+      medium: "medium",
+      minor: "low",
+    };
+    const planePriority = priorityMap[taskJson.severity?.toLowerCase()] || "high";
+
+    const createdIssue = await this.plane.createIssue(projectId, {
       name: taskJson.taskName,
-      markdown_description: description,
+      description_html: descriptionHtml,
+      priority: planePriority,
+      state: this.env.PLANE_DEFAULT_STATE_ID || "74a0a446-68bf-437b-9159-a602b67dbc7b", // Backlog
       assignees: userMatch.id ? [userMatch.id] : undefined,
     });
 
-    // 7. Đính kèm các ảnh từ Slack vào task ClickUp
-    let attachmentCount = 0;
-    for (const msg of messages) {
-      if (msg.files && Array.isArray(msg.files)) {
-        for (const f of msg.files) {
-          if (f.url_private) {
-            try {
-              const fileBuf = await this.slack.downloadPrivateFile(f.url_private);
-              await this.clickup.uploadAttachment(
-                createdTask.id,
-                f.name || "slack_attachment.png",
-                fileBuf,
-                f.mimetype
-              );
-              attachmentCount++;
-            } catch (attErr) {
-              console.warn("Lỗi upload attachment lên ClickUp:", attErr);
-            }
-          }
-        }
+    // 8. Nếu có file đính kèm từ Slack, thêm comment vào Plane issue
+    if (evidenceFiles.length > 0) {
+      try {
+        const commentHtml = `<p>📎 <strong>Tệp bằng chứng từ Slack:</strong></p><ul>${evidenceFiles
+          .map((f) => `<li><a href="${f.url}" target="_blank">${f.name}</a></li>`)
+          .join("")}</ul>`;
+        await this.plane.addIssueComment(projectId, createdIssue.id, commentHtml);
+      } catch (comErr) {
+        console.warn("Lỗi thêm comment bằng chứng lên Plane:", comErr);
       }
     }
 
-    // 8. Cập nhật thông báo lên Slack
+    // 9. Cập nhật thông báo lên Slack
+    const issueUrl = this.plane.getIssueWebUrl(
+      projectId,
+      createdIssue.id,
+      projectIdentifier,
+      createdIssue.sequence_id
+    );
+    const displayId = createdIssue.sequence_id
+      ? `${projectIdentifier}-${createdIssue.sequence_id}`
+      : createdIssue.id.slice(0, 8);
+
     const cardBlocks = createTaskCreatedCard({
-      id: createdTask.id,
-      name: createdTask.name,
-      url: createdTask.url || `https://app.clickup.com/t/${createdTask.id}`,
+      id: createdIssue.id,
+      displayId,
+      name: createdIssue.name,
+      url: issueUrl,
       assigneeName: userMatch.name,
-      attachmentsCount: attachmentCount,
+      status: "Backlog",
+      systemName: "Plane",
+      attachmentsCount: evidenceFiles.length,
     });
 
     if (duplicateWarning) {
@@ -514,41 +563,52 @@ ${threadText}`;
       });
     }
 
-    await this.slack.updateMessage(channelId, progressMsgTs, "Đã tạo task ClickUp thành công!", {
+    await this.slack.updateMessage(channelId, progressMsgTs, "Đã tạo task Plane thành công!", {
       blocks: cardBlocks,
     });
   }
 
-  private async handleSearchClickup(
+  private async handleSearchPlane(
     channelId: string,
     threadTs: string,
     query: string,
     progressMsgTs: string
   ): Promise<void> {
-    if (!this.clickup) {
+    if (!this.plane) {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        "⚠️ Chưa cấu hình ClickUp API Token."
+        "⚠️ Chưa cấu hình Plane API Key."
       );
       return;
     }
 
-    const listId = this.env.CLICKUP_DEFAULT_LIST_ID || "901818745715";
-    const tasks = await this.clickup.searchTasks(listId, query, true);
+    const projectId = this.env.PLANE_DEFAULT_PROJECT_ID || "e92f7ba8-0db9-487f-a21c-13712d226eb8";
+    const projectIdentifier = "MVLCTV";
+    const issues = await this.plane.searchIssues(projectId, query, true);
 
-    if (tasks.length === 0) {
+    if (issues.length === 0) {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        `🔍 Không tìm thấy bug/task nào liên quan đến từ khóa *"${query}"* trên ClickUp.`
+        `🔍 Không tìm thấy bug/task nào liên quan đến từ khóa *"${query}"* trên Plane.`
       );
       return;
     }
 
-    let reply = `🔍 *Tìm thấy ${tasks.length} task/bug liên quan trên ClickUp:*\n\n`;
-    tasks.slice(0, 8).forEach((t) => {
-      reply += `- <${t.url || `https://app.clickup.com/t/${t.id}`}|[${t.id}]> *${t.name}* (Trạng thái: \`${t.status?.status || "N/A"}\`)\n`;
+    let reply = `🔍 *Tìm thấy ${issues.length} task/bug liên quan trên Plane:*\n\n`;
+    issues.slice(0, 8).forEach((issue) => {
+      const issueUrl = this.plane!.getIssueWebUrl(
+        projectId,
+        issue.id,
+        projectIdentifier,
+        issue.sequence_id
+      );
+      const displayId = issue.sequence_id
+        ? `${projectIdentifier}-${issue.sequence_id}`
+        : issue.id.slice(0, 8);
+      const stateName = issue.state_detail?.name || "Open";
+      reply += `- <${issueUrl}|[${displayId}]> *${issue.name}* (Trạng thái: \`${stateName}\`)\n`;
     });
 
     await this.slack.updateMessage(channelId, progressMsgTs, reply);

@@ -87,10 +87,10 @@ export function createAnswerBlocks(
     type: "button",
     text: {
       type: "plain_text",
-      text: "🐛 Tạo Bug ClickUp",
+      text: "🐛 Tạo Bug Plane",
       emoji: true,
     },
-    action_id: "create_clickup_task",
+    action_id: "create_plane_task",
     value: "create_task",
   });
 
@@ -106,18 +106,23 @@ export function createAnswerBlocks(
 
 export function createTaskCreatedCard(task: {
   id: string;
+  displayId?: string;
   name: string;
   url: string;
   assigneeName?: string;
   status?: string;
   attachmentsCount?: number;
+  systemName?: string;
 }): any[] {
+  const system = task.systemName || "Plane";
+  const displayId = task.displayId || task.id;
+
   return [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `🎉 *Đã tạo thành công task trên ClickUp từ thread!*`,
+        text: `🎉 *Đã tạo thành công task trên ${system} từ thread!*`,
       },
     },
     {
@@ -125,7 +130,7 @@ export function createTaskCreatedCard(task: {
       fields: [
         {
           type: "mrkdwn",
-          text: `*Mã Task:* <${task.url}|[${task.id}]>`,
+          text: `*Mã Task:* <${task.url}|[${displayId}]>`,
         },
         {
           type: "mrkdwn",
@@ -137,7 +142,7 @@ export function createTaskCreatedCard(task: {
         },
         {
           type: "mrkdwn",
-          text: `*Tệp đính kèm:* ${task.attachmentsCount ? `📎 ${task.attachmentsCount} tệp` : "Không có"}`,
+          text: `*Trạng thái:* ${task.status || "Backlog"}`,
         },
       ],
     },
@@ -148,7 +153,7 @@ export function createTaskCreatedCard(task: {
           type: "button",
           text: {
             type: "plain_text",
-            text: "🔗 Mở Task ClickUp",
+            text: `🔗 Mở Task ${system}`,
             emoji: true,
           },
           url: task.url,

@@ -14,6 +14,11 @@ export interface Env {
   WORKERS_AI_MODEL?: string;
   CLICKUP_API_TOKEN?: string;
   CLICKUP_DEFAULT_LIST_ID?: string;
+  PLANE_API_KEY?: string;
+  PLANE_API_HOST_URL?: string;
+  PLANE_WORKSPACE_SLUG?: string;
+  PLANE_DEFAULT_PROJECT_ID?: string;
+  PLANE_DEFAULT_STATE_ID?: string;
   CF_AI_GATEWAY_URL?: string; // Optional: https://gateway.ai.cloudflare.com/v1/{account}/{gateway}
   GITHUB_TOKEN?: string;
   GITHUB_DEFAULT_ORG?: string;

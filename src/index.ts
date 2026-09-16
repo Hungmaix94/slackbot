@@ -166,7 +166,7 @@ app.post("/slack/interactions", async (c) => {
   const threadTs = payload.message?.thread_ts || payload.message?.ts;
   const userId = payload.user?.id;
 
-  if (action?.action_id === "create_clickup_task") {
+  if (action?.action_id === "create_plane_task" || action?.action_id === "create_clickup_task") {
     c.executionCtx.waitUntil(
       (async () => {
         const orchestrator = new AgentOrchestrator(c.env);

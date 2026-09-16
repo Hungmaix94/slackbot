@@ -8,6 +8,9 @@
   "vars": {
     "AI_PROVIDER": "cloudflare",
     "WORKERS_AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "PLANE_API_HOST_URL": "https://pm.glinteco.com",
+    "PLANE_WORKSPACE_SLUG": "glinteco",
+    "PLANE_DEFAULT_PROJECT_ID": "e92f7ba8-0db9-487f-a21c-13712d226eb8",
     "CLICKUP_DEFAULT_LIST_ID": "901818745715"
   },
   "kv_namespaces": [

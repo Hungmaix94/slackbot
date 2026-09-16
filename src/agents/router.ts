@@ -1,31 +1,43 @@
-export type AgentIntent = "SRS_QA" | "BA" | "QA" | "CREATE_TASK" | "SEARCH_CLICKUP" | "CODE_DEV";
+export type AgentIntent = "SRS_QA" | "BA" | "QA" | "CREATE_TASK" | "SEARCH_PLANE" | "SEARCH_CLICKUP" | "CODE_DEV";
 
 export function classifyIntent(query: string): AgentIntent {
   const q = query.toLowerCase();
 
-  // 1. Tạo task hoặc báo bug trên ClickUp
+  // 1. Tạo task hoặc báo bug trên Plane / ClickUp
   if (
     q.startsWith("/create_task") ||
     q.startsWith("/create-task") ||
+    q.startsWith("/plane-task") ||
     q.startsWith("/clickup-task") ||
+    q.includes("tạo task plane") ||
+    q.includes("tạo plane task") ||
+    q.includes("tạo bug plane") ||
+    q.includes("báo lỗi plane") ||
+    q.includes("báo bug plane") ||
     q.includes("tạo task clickup") ||
     q.includes("tạo clickup task") ||
     q.includes("tạo task click up") ||
     q.includes("tạo bug") ||
+    q.includes("tạo task") ||
     q.includes("báo lỗi clickup")
   ) {
     return "CREATE_TASK";
   }
 
-  // 2. Tra cứu bug / task ClickUp
+  // 2. Tra cứu bug / task trên Plane
   if (
     q.startsWith("/bugs") ||
     q.startsWith("/tasks") ||
+    q.startsWith("/plane-bugs") ||
+    q.startsWith("/plane-tasks") ||
     q.includes("tìm bug") ||
     q.includes("tìm task") ||
-    q.includes("tiến độ clickup")
+    q.includes("tiến độ plane") ||
+    q.includes("tiến độ clickup") ||
+    q.includes("tra cứu bug") ||
+    q.includes("tra cứu task")
   ) {
-    return "SEARCH_CLICKUP";
+    return "SEARCH_PLANE";
   }
 
   // 3. Tra cứu kỹ thuật / Codebase / API / Model
