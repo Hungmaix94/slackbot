@@ -15,7 +15,8 @@ export interface PlaneDuplicateCheckResult {
 const STOP_WORDS = new Set([
   "lỗi", "không", "được", "trên", "phân", "hệ", "khi", "bị", "trong", "vào",
   "cho", "với", "tại", "màn", "hình", "button", "nút", "thì", "đang", "báo",
-  "bug", "task", "chức", "năng"
+  "bug", "task", "chức", "năng", "phát", "hiện", "từ", "slack", "thread",
+  "ngày", "chi", "tiết", "link", "thảo", "luận", "xem", "chung"
 ]);
 
 /**
@@ -30,11 +31,17 @@ export async function checkDuplicatePlaneIssues(
   try {
     const existingIssues = await client.getIssues(projectId, { per_page: 60, order_by: "-created_at" });
     const titleLower = taskTitle.toLowerCase();
+
+    // Bỏ qua nếu tiêu đề là template generic
+    if (titleLower.includes("lỗi phát hiện từ slack thread")) {
+      return { hasDuplicate: false, duplicateIssues: [] };
+    }
+
     const words = titleLower
       .split(/[\s,.:;!?/()_-]+/)
       .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
 
-    if (words.length === 0) {
+    if (words.length < 2) {
       return { hasDuplicate: false, duplicateIssues: [] };
     }
 
@@ -43,6 +50,11 @@ export async function checkDuplicatePlaneIssues(
     for (const issue of existingIssues) {
       const issueNameLower = (issue.name || "").toLowerCase();
 
+      // Bỏ qua các issue cũ có tiêu đề generic
+      if (issueNameLower.includes("lỗi phát hiện từ slack thread")) {
+        continue;
+      }
+
       let matchCount = 0;
       for (const word of words) {
         if (issueNameLower.includes(word)) {
@@ -50,8 +62,11 @@ export async function checkDuplicatePlaneIssues(
         }
       }
 
-      // Nếu trùng >= 50% số từ khóa quan trọng hoặc tên chứa nhau
-      if (matchCount / words.length >= 0.5 || (words.length >= 2 && issueNameLower.includes(titleLower))) {
+      // Trùng >= 70% số từ khóa thực sự có nghĩa hoặc tên chứa trọn vẹn cụm từ
+      if (
+        (matchCount / words.length >= 0.7 && matchCount >= 2) ||
+        (words.length >= 3 && issueNameLower.includes(titleLower))
+      ) {
         const issueUrl = client.getIssueWebUrl(
           projectId,
           issue.id,

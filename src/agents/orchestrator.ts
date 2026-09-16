@@ -20,6 +20,13 @@ import { createAnswerBlocks, createProgressBlock, createTaskCreatedCard } from "
 import { resolvePlaneUserId } from "../slack/user-mapping";
 import { checkDuplicatePlaneIssues } from "../plane/duplicates";
 import { buildPlaneBugHtmlDescription } from "../plane/task-builder";
+import {
+  resolvePlaneProject,
+  setChannelDefaultProject,
+  getChannelDefaultProject,
+  formatProjectsListBlocks,
+} from "../plane/projects";
+import { extractTaskFromThread } from "../ai/task-extractor";
 
 export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
   {
@@ -137,9 +144,21 @@ export class AgentOrchestrator {
     try {
       const intent = classifyIntent(query);
 
+      // XỬ LÝ INTENT: XEM DANH SÁCH PROJECT PLANE
+      if (intent === "LIST_PROJECTS") {
+        await this.handleListProjects(channelId, targetThreadTs, progressMsg.ts);
+        return;
+      }
+
+      // XỬ LÝ INTENT: GÁN DEFAULT PROJECT CHO CHANNEL
+      if (intent === "SET_PROJECT") {
+        await this.handleSetProject(channelId, targetThreadTs, query, progressMsg.ts);
+        return;
+      }
+
       // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
       if (intent === "CREATE_TASK") {
-        await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsg.ts);
+        await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsg.ts, query);
         return;
       }
 
@@ -388,11 +407,65 @@ export class AgentOrchestrator {
     }
   }
 
+  private async handleListProjects(
+    channelId: string,
+    threadTs: string,
+    progressMsgTs: string
+  ): Promise<void> {
+    const currentChannelProj = await getChannelDefaultProject(channelId, this.env);
+    const blocks = formatProjectsListBlocks(currentChannelProj);
+    await this.slack.updateMessage(channelId, progressMsgTs, "Danh sách Project trên Plane:", {
+      blocks,
+    });
+  }
+
+  private async handleSetProject(
+    channelId: string,
+    threadTs: string,
+    query: string,
+    progressMsgTs: string
+  ): Promise<void> {
+    const parts = query
+      .replace(/^\/set[-_]project/i, "")
+      .replace(/^set\s+project/i, "")
+      .replace(/^đổi\s+project/i, "")
+      .replace(/^chọn\s+project/i, "")
+      .replace(/^gán\s+project\s+mặc\s+định/i, "")
+      .replace(/^đặt\s+project\s+mặc\s+định/i, "")
+      .trim();
+
+    if (!parts) {
+      await this.slack.updateMessage(
+        channelId,
+        progressMsgTs,
+        "⚠️ Vui lòng cung cấp mã hoặc tên Project bạn muốn gán.\nVí dụ: `@bot set project CRM` hoặc `@bot set project MVLGO`."
+      );
+      return;
+    }
+
+    const matchedProj = await setChannelDefaultProject(channelId, parts, this.env);
+    if (!matchedProj) {
+      await this.slack.updateMessage(
+        channelId,
+        progressMsgTs,
+        `⚠️ Không tìm thấy project nào khớp với từ khóa *"${parts}"*.\nHãy gõ \`@bot projects\` để xem danh sách project hợp lệ.`
+      );
+      return;
+    }
+
+    await this.slack.updateMessage(
+      channelId,
+      progressMsgTs,
+      `✅ Đã đặt project mặc định cho kênh này thành *${matchedProj.name}* (\`${matchedProj.identifier}\`).\nTừ bây giờ mọi bug/task tạo trong kênh này sẽ mặc định được tạo trên project này!`
+    );
+  }
+
   private async handleCreateTaskFromThread(
     channelId: string,
     threadTs: string,
     slackUserId: string,
-    progressMsgTs: string
+    progressMsgTs: string,
+    commandQuery?: string
   ): Promise<void> {
     if (!this.plane) {
       await this.slack.updateMessage(
@@ -402,9 +475,6 @@ export class AgentOrchestrator {
       );
       return;
     }
-
-    const projectId = this.env.PLANE_DEFAULT_PROJECT_ID || "e92f7ba8-0db9-487f-a21c-13712d226eb8";
-    const projectIdentifier = "MVLCTV";
 
     // 1. Lấy toàn bộ tin nhắn trong thread
     const messages = await this.slack.getConversationReplies(channelId, threadTs);
@@ -417,7 +487,18 @@ export class AgentOrchestrator {
       return;
     }
 
-    // 2. Nhận diện người tạo / assignees trên Plane
+    // 2. Xác định dự án mục tiêu (Dynamic Project Resolution)
+    const threadFullText = [commandQuery, ...messages.map((m) => m.text || "")].filter(Boolean).join(" ");
+    const targetProject = await resolvePlaneProject({
+      text: threadFullText,
+      channelId,
+      env: this.env,
+      planeClient: this.plane,
+    });
+    const projectId = targetProject.id;
+    const projectIdentifier = targetProject.identifier;
+
+    // 3. Nhận diện người tạo / assignees trên Plane cho dự án này
     const userMatch = await resolvePlaneUserId(
       slackUserId,
       this.slack,
@@ -480,47 +561,20 @@ export class AgentOrchestrator {
     const assigneeIds = resolvedAssignees.map((a) => a.id);
     const assigneeDisplayNames = resolvedAssignees.map((a) => a.name).filter(Boolean).join(", ");
 
-    // 3. Tóm tắt nội dung bằng Gemini / AI
-    const threadText = messages.map((m) => `${m.user || "User"}: ${m.text || ""}`).join("\n");
+    // 4. Trích xuất nội dung Bug Report bằng AI + Heuristic Fallback
     const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
     const aiClient = useWorkersAi && this.env.AI
       ? new WorkersAiClient(this.env)
       : new GeminiClient(this.env);
 
-    const prompt = `Phân tích đoạn thảo luận sau từ Slack thread và trích xuất thông tin tạo Bug Report trên hệ thống quản lý Plane theo định dạng JSON:
-{
-  "taskName": "[BUG] [Tên phân hệ] - Mô tả lỗi ngắn gọn (dưới 70 ký tự)",
-  "moduleName": "Tên phân hệ (ví dụ: Quản lý Quỹ, Tạm ứng, Đặt cọc, HRM...)",
-  "stepsToReproduce": ["Bước 1...", "Bước 2..."],
-  "actualBehavior": "Mô tả lỗi thực tế",
-  "expectedBehavior": "Mô tả kết quả mong muốn đúng nghiệp vụ",
-  "severity": "Major / Blocker / Critical / Minor"
-}
-
-Nội dung thảo luận:
-${threadText}`;
-
-    const parsedRes = await aiClient.generateContent({
-      contents: [{ role: "user", parts: [{ text: prompt }] }],
-      temperature: 0.1,
+    const taskJson = await extractTaskFromThread({
+      messages,
+      threadTs,
+      query: commandQuery || "",
+      aiClient,
     });
 
-    let taskJson: any = {};
-    try {
-      const cleanJson = parsedRes.text.replace(/```json|```/g, "").trim();
-      taskJson = JSON.parse(cleanJson);
-    } catch {
-      taskJson = {
-        taskName: `[BUG] Lỗi phát hiện từ Slack thread ${threadTs}`,
-        moduleName: "Chung",
-        stepsToReproduce: ["Xem chi tiết trong link thảo luận Slack"],
-        actualBehavior: messages[0]?.text?.substring(0, 100) || "Lỗi",
-        expectedBehavior: "Hệ thống xử lý đúng nghiệp vụ",
-        severity: "Major",
-      };
-    }
-
-    // 4. Kiểm tra xem có bug nào bị trùng không (Smart Duplicate Check trên Plane)
+    // 5. Kiểm tra xem có bug nào bị trùng không (Smart Duplicate Check trên Plane)
     const duplicateCheck = await checkDuplicatePlaneIssues(
       this.plane,
       projectId,
@@ -531,10 +585,10 @@ ${threadText}`;
     if (duplicateCheck.hasDuplicate) {
       const dup = duplicateCheck.duplicateIssues[0];
       const dupDisplay = dup.sequenceId ? `${projectIdentifier}-${dup.sequenceId}` : dup.id.slice(0, 8);
-      duplicateWarning = `\n> ⚠️ *Cảnh báo trùng lặp:* Phát hiện task tương tự trên Plane: <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
+      duplicateWarning = `\n> ⚠️ *Lưu ý trùng lặp:* Phát hiện task tương tự trên Plane: <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
     }
 
-    // 5. Thu thập file đính kèm từ Slack
+    // 6. Thu thập file đính kèm từ Slack
     const evidenceFiles: { name: string; url: string }[] = [];
     for (const msg of messages) {
       if (msg.files && Array.isArray(msg.files)) {
@@ -549,7 +603,7 @@ ${threadText}`;
       }
     }
 
-    // 6. Tạo mô tả task chuẩn theo HTML cho Plane
+    // 7. Tạo mô tả task chuẩn theo HTML cho Plane
     const slackThreadUrl = `https://slack.com/app_redirect?channel=${channelId}&thread_ts=${threadTs}`;
     const descriptionHtml = buildPlaneBugHtmlDescription({
       moduleName: taskJson.moduleName,
@@ -560,29 +614,20 @@ ${threadText}`;
       actualBehavior: taskJson.actualBehavior,
       expectedBehavior: taskJson.expectedBehavior,
       slackThreadUrl,
-      slackMetadata: `channel_id=${channelId} thread_ts=${threadTs}`,
+      slackMetadata: `channel_id=${channelId} thread_ts=${threadTs} project=${projectIdentifier}`,
       evidenceFiles,
     });
 
-    // 7. Tạo task trên Plane
-    const priorityMap: Record<string, "urgent" | "high" | "medium" | "low" | "none"> = {
-      blocker: "urgent",
-      critical: "urgent",
-      major: "high",
-      medium: "medium",
-      minor: "low",
-    };
-    const planePriority = priorityMap[taskJson.severity?.toLowerCase()] || "high";
-
+    // 8. Tạo task trên Plane
     const createdIssue = await this.plane.createIssue(projectId, {
       name: taskJson.taskName,
       description_html: descriptionHtml,
-      priority: planePriority,
+      priority: taskJson.severity,
       state: this.env.PLANE_DEFAULT_STATE_ID || "74a0a446-68bf-437b-9159-a602b67dbc7b", // Backlog
       assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
     });
 
-    // 8. Nếu có file đính kèm từ Slack, thêm comment vào Plane issue
+    // 9. Nếu có file đính kèm từ Slack, thêm comment vào Plane issue
     if (evidenceFiles.length > 0) {
       try {
         const commentHtml = `<p>📎 <strong>Tệp bằng chứng từ Slack:</strong></p><ul>${evidenceFiles
@@ -594,7 +639,7 @@ ${threadText}`;
       }
     }
 
-    // 9. Cập nhật thông báo lên Slack
+    // 10. Cập nhật thông báo lên Slack
     const issueUrl = this.plane.getIssueWebUrl(
       projectId,
       createdIssue.id,
@@ -613,6 +658,7 @@ ${threadText}`;
       assigneeName: assigneeDisplayNames || userMatch.name || "Chưa gán",
       status: "Backlog",
       systemName: "Plane",
+      projectName: `${targetProject.name} (${targetProject.identifier})`,
       attachmentsCount: evidenceFiles.length,
     });
 

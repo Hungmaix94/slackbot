@@ -113,9 +113,39 @@ export function createTaskCreatedCard(task: {
   status?: string;
   attachmentsCount?: number;
   systemName?: string;
+  projectName?: string;
 }): any[] {
   const system = task.systemName || "Plane";
   const displayId = task.displayId || task.id;
+
+  const fields: any[] = [
+    {
+      type: "mrkdwn",
+      text: `*Mã Task:* <${task.url}|[${displayId}]>`,
+    },
+    {
+      type: "mrkdwn",
+      text: `*Người thực hiện:* ${task.assigneeName || "Chưa gán"}`,
+    },
+  ];
+
+  if (task.projectName) {
+    fields.push({
+      type: "mrkdwn",
+      text: `*Dự án:* ${task.projectName}`,
+    });
+  }
+
+  fields.push(
+    {
+      type: "mrkdwn",
+      text: `*Tiêu đề:* ${task.name}`,
+    },
+    {
+      type: "mrkdwn",
+      text: `*Trạng thái:* ${task.status || "Backlog"}`,
+    }
+  );
 
   return [
     {
@@ -127,24 +157,7 @@ export function createTaskCreatedCard(task: {
     },
     {
       type: "section",
-      fields: [
-        {
-          type: "mrkdwn",
-          text: `*Mã Task:* <${task.url}|[${displayId}]>`,
-        },
-        {
-          type: "mrkdwn",
-          text: `*Người thực hiện:* ${task.assigneeName || "Chưa gán"}`,
-        },
-        {
-          type: "mrkdwn",
-          text: `*Tiêu đề:* ${task.name}`,
-        },
-        {
-          type: "mrkdwn",
-          text: `*Trạng thái:* ${task.status || "Backlog"}`,
-        },
-      ],
+      fields,
     },
     {
       type: "actions",

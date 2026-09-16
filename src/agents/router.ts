@@ -1,7 +1,45 @@
-export type AgentIntent = "SRS_QA" | "BA" | "QA" | "CREATE_TASK" | "SEARCH_PLANE" | "SEARCH_CLICKUP" | "CODE_DEV";
+export type AgentIntent =
+  | "SRS_QA"
+  | "BA"
+  | "QA"
+  | "CREATE_TASK"
+  | "SEARCH_PLANE"
+  | "SEARCH_CLICKUP"
+  | "CODE_DEV"
+  | "LIST_PROJECTS"
+  | "SET_PROJECT";
 
 export function classifyIntent(query: string): AgentIntent {
-  const q = query.toLowerCase();
+  const q = query.toLowerCase().trim();
+
+  // 0. Quản lý / cấu hình Project Plane
+  if (
+    q.startsWith("/set-project") ||
+    q.startsWith("/set_project") ||
+    q.startsWith("set project") ||
+    q.startsWith("đổi project") ||
+    q.startsWith("chọn project") ||
+    q.includes("gán project mặc định") ||
+    q.includes("đặt project mặc định")
+  ) {
+    return "SET_PROJECT";
+  }
+
+  if (
+    q === "/projects" ||
+    q === "/project" ||
+    q === "project" ||
+    q === "projects" ||
+    q.startsWith("/projects") ||
+    q.startsWith("/list-projects") ||
+    q.includes("danh sách project") ||
+    q.includes("danh sách dự án") ||
+    q.includes("xem các project") ||
+    q.includes("các project") ||
+    q.includes("project list")
+  ) {
+    return "LIST_PROJECTS";
+  }
 
   // 1. Tạo task hoặc báo bug trên Plane / ClickUp
   if (
