@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "mvl-slack-assistant",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-02-24",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "vars": {
+    "AI_PROVIDER": "cloudflare",
+    "WORKERS_AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "CLICKUP_DEFAULT_LIST_ID": "901818745715"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "KV",
+      "id": "9560e8749e6d4a85bc36cf9f264d85f7"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "mvl-srs-db",
+      "database_id": "f9f46355-0946-486c-8660-0f48f1ca505e"
+    }
+  ],
+  "vectorize": [
+    {
+      "binding": "VECTORIZE",
+      "index_name": "mvl-srs-vectors"
+    }
+  ],
+  "ai": {
+    "binding": "AI"
+  },
+  "observability": {
+    "enabled": true
+  }
+}

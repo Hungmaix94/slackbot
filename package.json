@@ -1,0 +1,32 @@
+{
+  "name": "mvl-slack-assistant",
+  "version": "2.0.0",
+  "description": "Next-Gen AI Assistant Slackbot on Cloudflare Edge with Hybrid RAG, Multi-Agent & ClickUp Smart Triage",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "cf-typegen": "wrangler types",
+    "build": "tsc --noEmit"
+  },
+  "keywords": [
+    "slackbot",
+    "cloudflare-workers",
+    "gemini",
+    "rag",
+    "vectorize",
+    "d1",
+    "clickup"
+  ],
+  "author": "MaiVietLand AI Squad",
+  "license": "ISC",
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "hono": "^4.7.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250224.0",
+    "typescript": "^5.7.3",
+    "wrangler": "^3.111.0"
+  }
+}
