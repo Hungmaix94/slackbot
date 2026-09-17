@@ -141,269 +141,310 @@ export class AgentOrchestrator {
       }
     );
 
+    let timeoutId: any;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error("TIMEOUT_22S"));
+      }, 22000);
+    });
+
     try {
-      const intent = classifyIntent(query);
-
-      // XỬ LÝ INTENT: XEM DANH SÁCH PROJECT PLANE
-      if (intent === "LIST_PROJECTS") {
-        await this.handleListProjects(channelId, targetThreadTs, progressMsg.ts);
-        return;
-      }
-
-      // XỬ LÝ INTENT: GÁN DEFAULT PROJECT CHO CHANNEL
-      if (intent === "SET_PROJECT") {
-        await this.handleSetProject(channelId, targetThreadTs, query, progressMsg.ts);
-        return;
-      }
-
-      // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
-      if (intent === "CREATE_TASK") {
-        await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsg.ts, query);
-        return;
-      }
-
-      // XỬ LÝ INTENT: TRA CỨU BUG TRÊN PLANE
-      if (intent === "SEARCH_PLANE" || intent === "SEARCH_CLICKUP") {
-        await this.handleSearchPlane(channelId, targetThreadTs, query, progressMsg.ts);
-        return;
-      }
-
-      // 2. Tra cứu RAG trong SRS
-      await this.slack.updateMessage(
-        channelId,
-        progressMsg.ts,
-        "⏳ Đang tra cứu tài liệu SRS...",
-        {
-          blocks: createProgressBlock(2, 3, "Đang đối chiếu tài liệu SRS & lịch sử hội thoại..."),
-        }
-      );
-
-      const srsResults = await this.srsSearch.search(query, 4);
-      let srsContext = "";
-      if (srsResults.length > 0) {
-        srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU TỪ HỆ THỐNG ===\n";
-        srsResults.forEach((r, idx) => {
-          srsContext += `\n[Tài liệu ${idx + 1}: ${r.docId} | Đề mục: ${r.heading}]\n${r.content}\n`;
-        });
-      } else {
-        srsContext = "\n\n[Thông báo: Không tìm thấy tài liệu SRS tương ứng trong cơ sở dữ liệu]";
-      }
-
-      // 3. Chọn System Instruction theo Intent
-      let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
-      if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
-      if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
-      let codeContext = "";
-      if (intent === "CODE_DEV") {
-        if (!this.github) {
-          await this.slack.updateMessage(
-            channelId,
-            progressMsg.ts,
-            "⚠️ Tính năng tra cứu mã nguồn yêu cầu cấu hình `GITHUB_TOKEN`. Bạn vui lòng cấu hình secret: `npx wrangler secret put GITHUB_TOKEN`."
-          );
-          return;
-        }
-        systemInstruction = SYSTEM_INSTRUCTION_DEV;
-
-        // Tự động nạp mã nguồn liên quan trực tiếp đến câu hỏi
-        codeContext = await getSmartCodeContext(query, this.github);
-        if (codeContext) {
-          await this.slack.updateMessage(
-            channelId,
-            progressMsg.ts,
-            "⏳ [Code Agent] Đã đọc trực tiếp mã nguồn backend liên quan, đang phân tích logic...",
-            {
-              blocks: createProgressBlock(2, 3, "Đã đọc trực tiếp mã nguồn backend, đang mổ xẻ nguyên nhân..."),
-            }
-          );
-        }
-      }
-
-      // 4. Xây dựng nội dung gửi tới AI
-      const contents: GeminiContent[] = [];
-
-      // Nạp lịch sử hội thoại gần nhất nếu có
-      if (params.history && params.history.length > 0) {
-        for (const msg of params.history.slice(-6)) {
-          const role = msg.bot_id ? "model" : "user";
-          const text = (msg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
-          if (text) {
-            contents.push({ role, parts: [{ text }] });
-          }
-        }
-      }
-
-      contents.push({
-        role: "user",
-        parts: [{ text: `${query}\n\n${srsContext}${codeContext}` }],
-      });
-
-      // 5. Khởi tạo AI Client: Cloudflare Workers AI (mặc định) hoặc Gemini
-      const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
-      const aiClient = useWorkersAi && this.env.AI
-        ? new WorkersAiClient(this.env)
-        : new GeminiClient(this.env);
-
-      // Nếu đã có codeContext nạp sẵn, không cần dùng tool gọi lại để tránh timeout 30s của Workers
-      const tools = codeContext ? undefined : (this.github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
-      let responseText = "";
-      const maxTurns = codeContext ? 1 : 3;
-      let currentTurn = 0;
-
-      while (currentTurn < maxTurns) {
-        currentTurn++;
-        const isFinalTurn = currentTurn === maxTurns;
-        const activeTools = isFinalTurn ? undefined : tools;
-
-        const aiResponse = await aiClient.generateContent({
-          contents,
-          systemInstruction: isFinalTurn
-            ? `${systemInstruction}\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và các đoạn mã nguồn đã được cung cấp để giải thích tường tận nguyên nhân gốc rễ, trích dẫn file code và đưa ra giải pháp rõ ràng bằng tiếng Việt theo đúng cấu trúc 3 phần. TUYỆT ĐỐI KHÔNG gọi thêm tool.`
-            : systemInstruction,
-          tools: activeTools,
-          temperature: 0.2,
-        });
-
-        if (!isFinalTurn && aiResponse.functionCalls && aiResponse.functionCalls.length > 0 && this.github) {
-          for (const call of aiResponse.functionCalls) {
-            contents.push({
-              role: "model",
-              parts: [{ functionCall: call }],
-            });
-
-            let toolResult = "";
-            try {
-              if (call.name === "search_codebase") {
-                const repo = call.args.repo || "backend";
-                const q = call.args.query || "";
-                await this.slack.updateMessage(
-                  channelId,
-                  progressMsg.ts,
-                  `⏳ [Code Agent] Đang tìm kiếm "${q}" trong repo ${repo}...`,
-                  {
-                    blocks: createProgressBlock(2, 3, `Đang tìm "${q}" trong repo ${repo}...`),
-                  }
-                );
-                const searchRes = await this.github.searchCode(repo, q);
-                toolResult = JSON.stringify(searchRes);
-              } else if (call.name === "read_code_file") {
-                const repo = call.args.repo || "backend";
-                const filePath = call.args.filePath || "";
-                await this.slack.updateMessage(
-                  channelId,
-                  progressMsg.ts,
-                  `⏳ [Code Agent] Đang đọc file ${filePath} (${repo})...`,
-                  {
-                    blocks: createProgressBlock(2, 3, `Đang đọc ${filePath} (${repo})...`),
-                  }
-                );
-                const fileRes = await this.github.readFile(repo, filePath, {
-                  startLine: call.args.startLine,
-                  endLine: call.args.endLine,
-                });
-                toolResult = fileRes.content;
-              } else if (call.name === "list_repository_files") {
-                const repo = call.args.repo || "backend";
-                const prefix = call.args.prefix || "";
-                const listRes = await this.github.listFiles(repo, { prefix });
-                toolResult = JSON.stringify(listRes);
-              } else {
-                toolResult = "Unknown function call";
-              }
-            } catch (toolErr: any) {
-              toolResult = `Lỗi thực thi tool ${call.name}: ${toolErr.message || String(toolErr)}`;
-            }
-
-            contents.push({
-              role: "user",
-              parts: [
-                {
-                  functionResponse: {
-                    name: call.name,
-                    response: { result: toolResult },
-                  },
-                },
-              ],
-            });
-          }
-        } else {
-          responseText = aiResponse.text;
-          break;
-        }
-      }
-
-      // 6. Kiểm tra xem có bảng Markdown cần xuất Excel không
-      const tables = parseAllMarkdownTables(responseText);
-      let excelData: any = null;
-
-      if (tables.length > 0) {
-        await this.slack.updateMessage(
+      await Promise.race([
+        this.processQuery({
           channelId,
-          progressMsg.ts,
-          "📊 Đang sinh file Excel kịch bản...",
-          {
-            blocks: createProgressBlock(3, 3, "Đang định dạng bảng tính Excel chuyên nghiệp..."),
-          }
-        );
-
-        try {
-          excelData = await generateExcelFromTables(tables, query);
-        } catch (excelErr) {
-          console.error("Lỗi tạo file Excel:", excelErr);
-        }
-      }
-
-      // 7. Cập nhật câu trả lời chính thức bằng Block Kit
-      const answerBlocks = createAnswerBlocks(responseText, {
-        hasExcel: !!excelData,
-        excelFileName: excelData?.filename,
-        isUsecase: intent === "BA",
-        isUat: intent === "QA",
-      });
-
-      await this.slack.updateMessage(channelId, progressMsg.ts, responseText, {
-        blocks: answerBlocks,
-      });
-
-      // 8. Nếu có file Excel, upload trực tiếp lên Slack
-      if (excelData) {
-        try {
-          await this.slack.uploadFileV2(
-            channelId,
-            excelData.buffer,
-            excelData.filename,
-            excelData.isUsecase ? "Danh sách UseCase (Sinh tự động)" : "Kịch bản UAT (Sinh tự động)",
-            "📊 Tôi đã tạo sẵn file Excel này theo định dạng chuẩn để bạn tải về trực tiếp:",
-            targetThreadTs
-          );
-
-          // Tùy chọn: Lưu backup vào Cloudflare R2 nếu có binding
-          if (this.env.R2) {
-            const r2Key = `exports/${Date.now()}_${excelData.filename}`;
-            await this.env.R2.put(r2Key, excelData.buffer);
-          }
-        } catch (uploadErr) {
-          console.error("Lỗi khi upload file Excel lên Slack:", uploadErr);
-        }
-      }
+          targetThreadTs,
+          userId,
+          query,
+          history: params.history,
+          progressMsgTs: progressMsg.ts,
+        }),
+        timeoutPromise,
+      ]);
     } catch (err: any) {
       console.error("Lỗi xử lý Agent:", err);
+      const isTimeout = err?.message === "TIMEOUT_22S";
+      const errorMsg = isTimeout
+        ? "⏱️ *Thời gian xử lý vượt quá giới hạn an toàn (22s)*.\n\n💡 *Gợi ý*: Tác vụ tra cứu và đọc mã nguồn tốn nhiều thời gian suy luận. Bạn vui lòng chỉ định trực tiếp mã lỗi hoặc đường dẫn file (ví dụ: `apps/notifications/tasks.py`) để bot trả lời nhanh trong 1 bước."
+        : `❌ *Lỗi khi xử lý yêu cầu:* ${err.message || String(err)}`;
+
       await this.slack.updateMessage(
         channelId,
         progressMsg.ts,
-        `❌ Lỗi khi xử lý yêu cầu: ${err.message || String(err)}`,
+        errorMsg,
         {
           blocks: [
             {
               type: "section",
               text: {
                 type: "mrkdwn",
-                text: `❌ *Lỗi khi xử lý yêu cầu:* ${err.message || String(err)}`,
+                text: errorMsg,
               },
             },
           ],
         }
       );
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  private async processQuery(params: {
+    channelId: string;
+    targetThreadTs: string;
+    userId: string;
+    query: string;
+    history?: any[];
+    progressMsgTs: string;
+  }): Promise<void> {
+    const { channelId, targetThreadTs, userId, query, history, progressMsgTs } = params;
+
+    const intent = classifyIntent(query);
+
+    // XỬ LÝ INTENT: XEM DANH SÁCH PROJECT PLANE
+    if (intent === "LIST_PROJECTS") {
+      await this.handleListProjects(channelId, targetThreadTs, progressMsgTs);
+      return;
+    }
+
+    // XỬ LÝ INTENT: GÁN DEFAULT PROJECT CHO CHANNEL
+    if (intent === "SET_PROJECT") {
+      await this.handleSetProject(channelId, targetThreadTs, query, progressMsgTs);
+      return;
+    }
+
+    // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
+    if (intent === "CREATE_TASK") {
+      await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsgTs, query);
+      return;
+    }
+
+    // XỬ LÝ INTENT: TRA CỨU BUG TRÊN PLANE
+    if (intent === "SEARCH_PLANE" || intent === "SEARCH_CLICKUP") {
+      await this.handleSearchPlane(channelId, targetThreadTs, query, progressMsgTs);
+      return;
+    }
+
+    // 2. Tra cứu RAG trong SRS
+    await this.slack.updateMessage(
+      channelId,
+      progressMsgTs,
+      "⏳ Đang tra cứu tài liệu SRS...",
+      {
+        blocks: createProgressBlock(2, 3, "Đang đối chiếu tài liệu SRS & lịch sử hội thoại..."),
+      }
+    );
+
+    const srsResults = await this.srsSearch.search(query, 4);
+    let srsContext = "";
+    if (srsResults.length > 0) {
+      srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU TỪ HỆ THỐNG ===\n";
+      srsResults.forEach((r, idx) => {
+        srsContext += `\n[Tài liệu ${idx + 1}: ${r.docId} | Đề mục: ${r.heading}]\n${r.content}\n`;
+      });
+    } else {
+      srsContext = "\n\n[Thông báo: Không tìm thấy tài liệu SRS tương ứng trong cơ sở dữ liệu]";
+    }
+
+    // 3. Chọn System Instruction theo Intent & Chủ động tải mã nguồn
+    let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
+    if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
+    if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
+
+    let codeContext = "";
+    if (this.github) {
+      // Chủ động kiểm tra và pre-fetch mã nguồn nếu có đường dẫn file hoặc thông báo lỗi
+      codeContext = await getSmartCodeContext(query, this.github);
+    }
+
+    if (intent === "CODE_DEV" || codeContext) {
+      if (!this.github) {
+        await this.slack.updateMessage(
+          channelId,
+          progressMsgTs,
+          "⚠️ Tính năng tra cứu mã nguồn yêu cầu cấu hình `GITHUB_TOKEN`. Bạn vui lòng cấu hình secret: `npx wrangler secret put GITHUB_TOKEN`."
+        );
+        return;
+      }
+      systemInstruction = SYSTEM_INSTRUCTION_DEV;
+
+      if (codeContext) {
+        await this.slack.updateMessage(
+          channelId,
+          progressMsgTs,
+          "⏳ [Code Agent] Đã nạp trực tiếp mã nguồn backend liên quan, đang phân tích logic...",
+          {
+            blocks: createProgressBlock(2, 3, "Đã đọc trực tiếp mã nguồn backend, đang mổ xẻ nguyên nhân..."),
+          }
+        );
+      }
+    }
+
+    // 4. Xây dựng nội dung gửi tới AI
+    const contents: GeminiContent[] = [];
+
+    // Nạp lịch sử hội thoại gần nhất nếu có
+    if (history && history.length > 0) {
+      for (const msg of history.slice(-6)) {
+        const role = msg.bot_id ? "model" : "user";
+        const text = (msg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
+        if (text) {
+          contents.push({ role, parts: [{ text }] });
+        }
+      }
+    }
+
+    contents.push({
+      role: "user",
+      parts: [{ text: `${query}\n\n${srsContext}${codeContext}` }],
+    });
+
+    // 5. Khởi tạo AI Client: Cloudflare Workers AI (mặc định) hoặc Gemini
+    const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
+    const aiClient = useWorkersAi && this.env.AI
+      ? new WorkersAiClient(this.env)
+      : new GeminiClient(this.env);
+
+    // Nếu đã có codeContext nạp sẵn, không cần dùng tool gọi lại để tránh timeout 30s của Workers
+    const tools = codeContext ? undefined : (this.github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
+    let responseText = "";
+    const maxTurns = codeContext ? 1 : 2; // Tối đa 2 turns để không bao giờ vượt quá 30s Cloudflare
+    let currentTurn = 0;
+
+    while (currentTurn < maxTurns) {
+      currentTurn++;
+      const isFinalTurn = currentTurn === maxTurns;
+      const activeTools = isFinalTurn ? undefined : tools;
+
+      const aiResponse = await aiClient.generateContent({
+        contents,
+        systemInstruction: isFinalTurn
+          ? `${systemInstruction}\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và các đoạn mã nguồn đã được cung cấp để giải thích tường tận nguyên nhân gốc rễ, trích dẫn file code và đưa ra giải pháp rõ ràng bằng tiếng Việt theo đúng cấu trúc 3 phần. TUYỆT ĐỐI KHÔNG gọi thêm tool.`
+          : systemInstruction,
+        tools: activeTools,
+        temperature: 0.2,
+      });
+
+      if (!isFinalTurn && aiResponse.functionCalls && aiResponse.functionCalls.length > 0 && this.github) {
+        for (const call of aiResponse.functionCalls) {
+          contents.push({
+            role: "model",
+            parts: [{ functionCall: call }],
+          });
+
+          let toolResult = "";
+          try {
+            if (call.name === "search_codebase") {
+              const repo = call.args.repo || "backend";
+              const q = call.args.query || "";
+              await this.slack.updateMessage(
+                channelId,
+                progressMsgTs,
+                `⏳ [Code Agent] Đang tìm kiếm "${q}" trong repo ${repo}...`,
+                {
+                  blocks: createProgressBlock(2, 3, `Đang tìm "${q}" trong repo ${repo}...`),
+                }
+              );
+              const searchRes = await this.github.searchCode(repo, q);
+              toolResult = JSON.stringify(searchRes);
+            } else if (call.name === "read_code_file") {
+              const repo = call.args.repo || "backend";
+              const filePath = call.args.filePath || "";
+              await this.slack.updateMessage(
+                channelId,
+                progressMsgTs,
+                `⏳ [Code Agent] Đang đọc file ${filePath} (${repo})...`,
+                {
+                  blocks: createProgressBlock(2, 3, `Đang đọc ${filePath} (${repo})...`),
+                }
+              );
+              const fileRes = await this.github.readFile(repo, filePath, {
+                startLine: call.args.startLine,
+                endLine: call.args.endLine || (call.args.startLine ? call.args.startLine + 100 : 120),
+              });
+              toolResult = fileRes.content;
+            } else if (call.name === "list_repository_files") {
+              const repo = call.args.repo || "backend";
+              const prefix = call.args.prefix || "";
+              const listRes = await this.github.listFiles(repo, { prefix });
+              toolResult = JSON.stringify(listRes);
+            } else {
+              toolResult = "Unknown function call";
+            }
+          } catch (toolErr: any) {
+            toolResult = `Lỗi thực thi tool ${call.name}: ${toolErr.message || String(toolErr)}`;
+          }
+
+          contents.push({
+            role: "user",
+            parts: [
+              {
+                functionResponse: {
+                  name: call.name,
+                  response: { result: toolResult },
+                },
+              },
+            ],
+          });
+        }
+      } else {
+        responseText = aiResponse.text;
+        break;
+      }
+    }
+
+    // 6. Kiểm tra xem có bảng Markdown cần xuất Excel không
+    const tables = parseAllMarkdownTables(responseText);
+    let excelData: any = null;
+
+    if (tables.length > 0) {
+      await this.slack.updateMessage(
+        channelId,
+        progressMsgTs,
+        "📊 Đang sinh file Excel kịch bản...",
+        {
+          blocks: createProgressBlock(3, 3, "Đang định dạng bảng tính Excel chuyên nghiệp..."),
+        }
+      );
+
+      try {
+        excelData = await generateExcelFromTables(tables, query);
+      } catch (excelErr) {
+        console.error("Lỗi tạo file Excel:", excelErr);
+      }
+    }
+
+    // 7. Cập nhật câu trả lời chính thức bằng Block Kit
+    const answerBlocks = createAnswerBlocks(responseText, {
+      hasExcel: !!excelData,
+      excelFileName: excelData?.filename,
+      isUsecase: intent === "BA",
+      isUat: intent === "QA",
+    });
+
+    await this.slack.updateMessage(channelId, progressMsgTs, responseText, {
+      blocks: answerBlocks,
+    });
+
+    // 8. Nếu có file Excel, upload trực tiếp lên Slack
+    if (excelData) {
+      try {
+        await this.slack.uploadFileV2(
+          channelId,
+          excelData.buffer,
+          excelData.filename,
+          excelData.isUsecase ? "Danh sách UseCase (Sinh tự động)" : "Kịch bản UAT (Sinh tự động)",
+          "📊 Tôi đã tạo sẵn file Excel này theo định dạng chuẩn để bạn tải về trực tiếp:",
+          targetThreadTs
+        );
+
+        // Tùy chọn: Lưu backup vào Cloudflare R2 nếu có binding
+        if (this.env.R2) {
+          const r2Key = `exports/${Date.now()}_${excelData.filename}`;
+          await this.env.R2.put(r2Key, excelData.buffer);
+        }
+      } catch (uploadErr) {
+        console.error("Lỗi khi upload file Excel lên Slack:", uploadErr);
+      }
     }
   }
 

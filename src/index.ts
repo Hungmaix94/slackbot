@@ -17,6 +17,7 @@ import { GitHubClient } from "./github/client";
 import { getSmartCodeContext } from "./agents/code-context";
 
 import { PlaneClient } from "./plane/client";
+import { SlackClient } from "./slack/client";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -111,11 +112,38 @@ app.post("/slack/events", async (c) => {
       (async () => {
         try {
           const orchestrator = new AgentOrchestrator(c.env);
+          let history: any[] = [];
+          let effectiveQuery = cleanQuery;
+
+          // Nếu mention diễn ra trong một thread, nạp ngữ cảnh thread
+          if (event.thread_ts) {
+            try {
+              const slack = new SlackClient(c.env.SLACK_BOT_TOKEN);
+              const threadMsgs = await slack.getConversationReplies(channelId, event.thread_ts);
+              // Lọc bỏ tin nhắn mention hiện tại
+              history = (threadMsgs || []).filter((m: any) => m.ts !== event.ts);
+
+              // Nếu câu query quá ngắn (ví dụ: "trả lời :v", "sao thế", "alo"), lấy câu hỏi/lỗi trước đó trong thread làm ngữ cảnh
+              if (cleanQuery.length < 25 && history.length > 0) {
+                const lastUserMsg = [...history].reverse().find((m: any) => !m.bot_id && m.text);
+                if (lastUserMsg) {
+                  const cleanedPrev = (lastUserMsg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
+                  if (cleanedPrev) {
+                    effectiveQuery = `${cleanedPrev}\n[Yêu cầu bổ sung: ${cleanQuery || "trả lời"}]`;
+                  }
+                }
+              }
+            } catch (histErr) {
+              console.warn("Could not fetch thread history:", histErr);
+            }
+          }
+
           await orchestrator.handleQuery({
             channelId,
             threadTs,
             userId,
-            query: cleanQuery,
+            query: effectiveQuery,
+            history,
           });
         } catch (e) {
           console.error("Async orchestrator error:", e);
@@ -254,12 +282,13 @@ app.post("/test/query", async (c) => {
   let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
   if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
   if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
-  if (intent === "CODE_DEV") systemInstruction = SYSTEM_INSTRUCTION_DEV;
-
   const github = c.env.GITHUB_TOKEN ? new GitHubClient(c.env.GITHUB_TOKEN) : undefined;
   let codeContext = "";
-  if (intent === "CODE_DEV" && github) {
+  if (github) {
     codeContext = await getSmartCodeContext(query, github);
+  }
+  if (intent === "CODE_DEV" || codeContext) {
+    systemInstruction = SYSTEM_INSTRUCTION_DEV;
   }
 
   const useWorkersAi = c.env.AI_PROVIDER === "cloudflare" || !c.env.GEMINI_API_KEY;
@@ -277,7 +306,7 @@ app.post("/test/query", async (c) => {
   const tools = codeContext ? undefined : (github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
 
   let responseText = "";
-  const maxTurns = codeContext ? 1 : 3;
+  const maxTurns = codeContext ? 1 : 2;
   let currentTurn = 0;
   const toolTrace: any[] = [];
 

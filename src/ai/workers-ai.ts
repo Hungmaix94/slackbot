@@ -24,7 +24,7 @@ export class WorkersAiService {
     }
 
     try {
-      const response: any = await this.ai.run("@cf/baai/bge-m3", {
+      const response: any = await this.ai.run("@cf/baai/bge-base-en-v1.5", {
         text: texts,
       });
 
@@ -135,7 +135,7 @@ export class WorkersAiClient {
 
     const payload: any = {
       messages,
-      max_tokens: 2200,
+      max_tokens: 1800,
     };
     if (params.temperature !== undefined) {
       payload.temperature = params.temperature;

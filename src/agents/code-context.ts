@@ -160,6 +160,30 @@ const DOMAIN_CODE_MAP: Array<{
       },
     ],
   },
+  {
+    // Luồng: Thông báo / Celery Tasks / FCM
+    keywords: [
+      "thông báo", "thong bao", "notification", "notifications", "fcm", "firebase",
+      "celery", "task", "tasks", "tasks.py", "bắn thông báo", "gửi thông báo",
+      "push notification", "device token"
+    ],
+    snippets: [
+      {
+        repo: "backend",
+        filePath: "apps/notifications/tasks.py",
+        startLine: 1,
+        endLine: 120,
+        description: "Celery tasks xử lý gửi thông báo đẩy (FCM) và thông báo hệ thống",
+      },
+      {
+        repo: "backend",
+        filePath: "apps/notifications/fcm_service.py",
+        startLine: 1,
+        endLine: 100,
+        description: "Dịch vụ FCMService gửi thông báo qua Firebase Cloud Messaging",
+      },
+    ],
+  },
 ];
 
 /**
@@ -205,6 +229,41 @@ export async function getSmartCodeContext(
 
   const q = query.toLowerCase();
   const matchedSnippets: PreloadedCodeSnippet[] = [];
+
+  // 0. Trích xuất file path cụ thể được chỉ định rõ trong query (ví dụ: apps/notifications/tasks.py, tasks.py)
+  const filePathRegex = /(?:apps|src|services|models|workflows|views|api)[\w\/\.\-]+\.(?:py|ts|tsx|js|json)/gi;
+  const pathMatches = query.match(filePathRegex) || [];
+  for (const p of pathMatches) {
+    const cleanPath = p.replace(/^backend\//, "").replace(/^\/+/, "");
+    if (!matchedSnippets.some((s) => s.filePath === cleanPath)) {
+      matchedSnippets.push({
+        repo: "backend",
+        filePath: cleanPath,
+        startLine: 1,
+        endLine: 120,
+        description: `Mã nguồn file ${cleanPath} được nhắc tới trực tiếp trong câu hỏi`,
+      });
+    }
+  }
+
+  // Nhận diện theo tên file phổ biến kết hợp từ khóa
+  if (matchedSnippets.length === 0) {
+    const fileMatch = query.match(/\b([a-zA-Z0-9_\-]+\.(?:py|ts|tsx))\b/i);
+    if (fileMatch && fileMatch[1]) {
+      const fname = fileMatch[1].toLowerCase();
+      if (fname === "tasks.py") {
+        if (q.includes("notif") || q.includes("thông báo") || q.includes("thong bao") || q.includes("fcm")) {
+          matchedSnippets.push({
+            repo: "backend",
+            filePath: "apps/notifications/tasks.py",
+            startLine: 1,
+            endLine: 120,
+            description: "File apps/notifications/tasks.py xử lý thông báo",
+          });
+        }
+      }
+    }
+  }
 
   // 1. So khớp các chủ đề nghiệp vụ định sẵn
   for (const domain of DOMAIN_CODE_MAP) {

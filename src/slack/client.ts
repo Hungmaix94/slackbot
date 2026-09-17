@@ -49,7 +49,21 @@ export class SlackClient {
     } else {
       payload.blocks = [];
     }
-    await this.callApi("chat.update", payload);
+    try {
+      await this.callApi("chat.update", payload);
+    } catch (err: any) {
+      if (err.message && err.message.includes("ratelimited")) {
+        console.warn("Slack chat.update rate limited, retrying in 800ms...");
+        await new Promise((r) => setTimeout(r, 800));
+        try {
+          await this.callApi("chat.update", payload);
+        } catch (retryErr) {
+          console.error("Slack chat.update retry failed:", retryErr);
+        }
+      } else {
+        throw err;
+      }
+    }
   }
 
   async addReaction(channel: string, timestamp: string, name: string): Promise<void> {
