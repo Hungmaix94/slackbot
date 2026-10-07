@@ -9,13 +9,33 @@ export function buildPlaneBugHtmlDescription(params: {
   slackThreadUrl?: string;
   slackMetadata?: string;
   evidenceFiles?: { name: string; url: string }[];
+  externalLinks?: { name: string; url: string }[];
+  nativeAttachmentsCount?: number;
 }): string {
   const stepsItems = params.stepsToReproduce && params.stepsToReproduce.length > 0
     ? params.stepsToReproduce.map((step) => `<li>${escapeHtml(step)}</li>`).join("")
     : "<li>Đăng nhập hệ thống</li><li>Thao tác theo mô tả trong Slack thread</li>";
 
   let evidenceHtml = "<p><em>Không có hình ảnh đính kèm từ Slack.</em></p>";
-  if (params.evidenceFiles && params.evidenceFiles.length > 0) {
+  const parts: string[] = [];
+
+  if (params.nativeAttachmentsCount && params.nativeAttachmentsCount > 0) {
+    parts.push(`<p>📎 <em>Đã tải lên trực tiếp <strong>${params.nativeAttachmentsCount} tệp đính kèm</strong> vào mục <strong>Attachments</strong> của task này trên Plane.</em></p>`);
+  }
+
+  if (params.externalLinks && params.externalLinks.length > 0) {
+    const linkItems = params.externalLinks
+      .map(
+        (l) =>
+          `<li>🔗 <a href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(l.name)}</a></li>`
+      )
+      .join("");
+    parts.push(`<ul>${linkItems}</ul>`);
+  }
+
+  if (parts.length > 0) {
+    evidenceHtml = parts.join("");
+  } else if (params.evidenceFiles && params.evidenceFiles.length > 0) {
     const fileItems = params.evidenceFiles
       .map(
         (f) =>

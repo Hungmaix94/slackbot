@@ -635,16 +635,32 @@ export class AgentOrchestrator {
       duplicateWarning = `\n> ⚠️ *Lưu ý trùng lặp:* Phát hiện task tương tự trên Plane: <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
     }
 
-    // 6. Thu thập file đính kèm từ Slack
-    const evidenceFiles: { name: string; url: string }[] = [];
+    // 6. Thu thập file đính kèm từ Slack & liên kết ngoài
+    const evidenceFiles: { name: string; url: string; mimetype?: string }[] = [];
+    const externalLinks: { name: string; url: string }[] = [];
+
     for (const msg of messages) {
       if (msg.files && Array.isArray(msg.files)) {
         for (const f of msg.files) {
           if (f.url_private) {
             evidenceFiles.push({
               name: f.name || "Tệp đính kèm Slack",
-              url: f.permalink || f.url_private,
+              url: f.url_private,
+              mimetype: f.mimetype || "image/png",
             });
+          }
+        }
+      }
+      if (msg.text) {
+        const urlMatches = msg.text.match(/https?:\/\/[^\s>]+/g);
+        if (urlMatches) {
+          for (const u of urlMatches) {
+            if (!u.includes("slack.com") && !externalLinks.some((l) => l.url === u)) {
+              let linkName = u;
+              if (u.includes("portal.maivietland.vn")) linkName = "Cổng thông tin Portal MaiVietLand";
+              else if (u.includes("sale.maivietland.vn")) linkName = "Trang bán hàng App Sale";
+              externalLinks.push({ name: linkName, url: u });
+            }
           }
         }
       }
@@ -662,7 +678,8 @@ export class AgentOrchestrator {
       expectedBehavior: taskJson.expectedBehavior,
       slackThreadUrl,
       slackMetadata: `channel_id=${channelId} thread_ts=${threadTs} project=${projectIdentifier}`,
-      evidenceFiles,
+      nativeAttachmentsCount: evidenceFiles.length,
+      externalLinks,
     });
 
     // 8. Tạo task trên Plane (tự động truy vấn state mặc định / backlog hợp lệ của chính dự án đó)
@@ -689,15 +706,21 @@ export class AgentOrchestrator {
       assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
     });
 
-    // 9. Nếu có file đính kèm từ Slack, thêm comment vào Plane issue
-    if (evidenceFiles.length > 0) {
-      try {
-        const commentHtml = `<p>📎 <strong>Tệp bằng chứng từ Slack:</strong></p><ul>${evidenceFiles
-          .map((f) => `<li><a href="${f.url}" target="_blank">${f.name}</a></li>`)
-          .join("")}</ul>`;
-        await this.plane.addIssueComment(projectId, createdIssue.id, commentHtml);
-      } catch (comErr) {
-        console.warn("Lỗi thêm comment bằng chứng lên Plane:", comErr);
+    // 9. Tải file từ Slack và upload trực tiếp làm file đính kèm vào mục Attachments của Plane issue
+    if (evidenceFiles.length > 0 && this.plane) {
+      for (const f of evidenceFiles) {
+        try {
+          const fileBuffer = await this.slack.downloadFile(f.url);
+          await this.plane.uploadIssueAttachment(
+            projectId,
+            createdIssue.id,
+            fileBuffer,
+            f.name,
+            f.mimetype || "image/png"
+          );
+        } catch (attErr) {
+          console.warn(`Lỗi upload attachment "${f.name}" lên Plane:`, attErr);
+        }
       }
     }
 

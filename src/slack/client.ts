@@ -184,4 +184,16 @@ export class SlackClient {
       thread_ts,
     });
   }
+
+  async downloadFile(url: string): Promise<ArrayBuffer> {
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${this.token}`,
+      },
+    });
+    if (!res.ok) {
+      throw new Error(`Failed to download Slack file (${res.status}): ${url}`);
+    }
+    return await res.arrayBuffer();
+  }
 }

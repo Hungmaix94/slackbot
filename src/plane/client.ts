@@ -320,4 +320,75 @@ export class PlaneClient {
       return true;
     });
   }
+
+  async uploadIssueAttachment(
+    projectId: string,
+    issueId: string,
+    fileBuffer: ArrayBuffer | Uint8Array,
+    fileName: string,
+    mimeType: string = "image/png"
+  ): Promise<any> {
+    const fileSize = fileBuffer.byteLength;
+
+    // 1. Khởi tạo attachment & xin pre-signed upload URL
+    const initRes = await fetch(
+      `${this.hostUrl}/api/v1/workspaces/${this.workspaceSlug}/projects/${projectId}/issues/${issueId}/issue-attachments/`,
+      {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify({
+          name: fileName,
+          type: mimeType,
+          size: fileSize,
+        }),
+      }
+    );
+
+    if (!initRes.ok) {
+      const errText = await initRes.text();
+      throw new Error(`Plane API init attachment failed (${initRes.status}): ${errText}`);
+    }
+
+    const { upload_data, asset_id } = (await initRes.json()) as any;
+    if (!upload_data || !upload_data.url) {
+      throw new Error("Plane API did not return valid upload_data");
+    }
+
+    // 2. Upload file nhị phân trực tiếp lên Object Storage
+    const formData = new FormData();
+    if (upload_data.fields) {
+      for (const [k, v] of Object.entries(upload_data.fields)) {
+        formData.append(k, v as string);
+      }
+    }
+    const blob = new Blob([fileBuffer], { type: mimeType });
+    formData.append("file", blob, fileName);
+
+    const uploadRes = await fetch(upload_data.url, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!uploadRes.ok) {
+      const errText = await uploadRes.text();
+      throw new Error(`Storage upload failed (${uploadRes.status}): ${errText}`);
+    }
+
+    // 3. Hoàn tất attachment record trên Plane
+    const patchRes = await fetch(
+      `${this.hostUrl}/api/v1/workspaces/${this.workspaceSlug}/projects/${projectId}/issues/${issueId}/issue-attachments/${asset_id}/`,
+      {
+        method: "PATCH",
+        headers: this.headers,
+        body: JSON.stringify({ is_uploaded: true }),
+      }
+    );
+
+    if (!patchRes.ok && patchRes.status !== 204) {
+      const errText = await patchRes.text();
+      throw new Error(`Plane complete attachment failed (${patchRes.status}): ${errText}`);
+    }
+
+    return { asset_id, name: fileName, size: fileSize };
+  }
 }
