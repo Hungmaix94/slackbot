@@ -26,6 +26,7 @@ import {
   getChannelDefaultProject,
   formatProjectsListBlocks,
 } from "../plane/projects";
+import { resolvePlaneModule } from "../plane/modules";
 import { extractTaskFromThread } from "../ai/task-extractor";
 
 export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
@@ -700,13 +701,58 @@ export class AgentOrchestrator {
       }
     }
 
-    // 10. Cập nhật thông báo lên Slack
+    // 10. Gán issue vào Module tương ứng (nếu phát hiện alias p31, as, crm, ai, ui...)
+    const targetModule = resolvePlaneModule(commandQuery || taskJson.moduleName);
+    if (targetModule) {
+      try {
+        await this.plane.addIssueToModule(projectId, targetModule.id, createdIssue.id);
+      } catch (modErr) {
+        console.warn("Lỗi gán module cho issue:", modErr);
+      }
+    }
+
     const issueUrl = this.plane.getIssueWebUrl(
       projectId,
       createdIssue.id,
       projectIdentifier,
       createdIssue.sequence_id
     );
+
+    // 11. Tạo các Sub-tasks con nếu phát hiện nhiều mục/lỗi trong thread
+    const subtasksTree: { name: string; url: string; displayId?: string }[] = [];
+    if (taskJson.subtasks && taskJson.subtasks.length > 0) {
+      for (const subName of taskJson.subtasks) {
+        try {
+          const subIssue = await this.plane.createIssue(projectId, {
+            name: subName,
+            description_html: `<p>Sub-task của parent issue: <a href="${issueUrl}">${createdIssue.name}</a></p>`,
+            priority: taskJson.severity,
+            state: stateId,
+            parent: createdIssue.id,
+            assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
+          });
+
+          if (targetModule) {
+            await this.plane.addIssueToModule(projectId, targetModule.id, subIssue.id);
+          }
+
+          const subDisplayId = subIssue.sequence_id
+            ? `${projectIdentifier}-${subIssue.sequence_id}`
+            : subIssue.id.slice(0, 8);
+          const subUrl = this.plane.getIssueWebUrl(
+            projectId,
+            subIssue.id,
+            projectIdentifier,
+            subIssue.sequence_id
+          );
+          subtasksTree.push({ name: subName, url: subUrl, displayId: subDisplayId });
+        } catch (subErr) {
+          console.warn("Lỗi tạo subtask trên Plane:", subErr);
+        }
+      }
+    }
+
+    // 12. Cập nhật thông báo lên Slack
     const displayId = createdIssue.sequence_id
       ? `${projectIdentifier}-${createdIssue.sequence_id}`
       : createdIssue.id.slice(0, 8);
@@ -720,6 +766,8 @@ export class AgentOrchestrator {
       status: "Backlog",
       systemName: "Plane",
       projectName: `${targetProject.name} (${targetProject.identifier})`,
+      moduleName: targetModule ? targetModule.name : undefined,
+      subtasksTree: subtasksTree.length > 0 ? subtasksTree : undefined,
       attachmentsCount: evidenceFiles.length,
     });
 

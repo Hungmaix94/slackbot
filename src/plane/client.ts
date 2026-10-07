@@ -49,6 +49,7 @@ export interface CreatePlaneIssuePayload {
   state?: string;
   assignees?: string[];
   labels?: string[];
+  parent?: string;
 }
 
 export class PlaneClient {
@@ -132,6 +133,33 @@ export class PlaneClient {
     }
     const data: any = await res.json();
     return Array.isArray(data) ? data : data.results || [];
+  }
+
+  async getModules(projectId: string): Promise<any[]> {
+    const res = await fetch(
+      `${this.hostUrl}/api/v1/workspaces/${this.workspaceSlug}/projects/${projectId}/modules/`,
+      {
+        method: "GET",
+        headers: this.headers,
+      }
+    );
+    if (!res.ok) {
+      throw new Error(`Plane API getModules failed: ${res.status} ${res.statusText}`);
+    }
+    const data: any = await res.json();
+    return Array.isArray(data) ? data : data.results || [];
+  }
+
+  async addIssueToModule(projectId: string, moduleId: string, issueId: string): Promise<boolean> {
+    const res = await fetch(
+      `${this.hostUrl}/api/v1/workspaces/${this.workspaceSlug}/projects/${projectId}/modules/${moduleId}/module-issues/`,
+      {
+        method: "POST",
+        headers: this.headers,
+        body: JSON.stringify({ issues: [issueId] }),
+      }
+    );
+    return res.ok;
   }
 
   async getIssues(

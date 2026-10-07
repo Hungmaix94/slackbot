@@ -5,6 +5,8 @@ export interface ExtractedTaskInfo {
   actualBehavior: string;
   expectedBehavior: string;
   severity: "urgent" | "high" | "medium" | "low" | "none";
+  subtasks?: string[];
+  targetModule?: string;
 }
 
 /**
@@ -87,6 +89,17 @@ export function extractBugHeuristically(
     description = clean || `Lỗi phát hiện từ Slack thread ${threadTs}`;
   }
 
+  // Trích xuất subtasks từ bullet points hoặc danh sách nếu có
+  const subtasks: string[] = [];
+  const lines = clean.split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const itemMatch = trimmed.match(/^(?:[-*•]|\d+[\.\)])\s+(.{5,80})/);
+    if (itemMatch && itemMatch[1]) {
+      subtasks.push(itemMatch[1].trim());
+    }
+  }
+
   const shortDesc =
     description.length > 60 ? description.substring(0, 57).trim() + "..." : description;
   const taskName = `[BUG] [${moduleName}] - ${shortDesc}`;
@@ -102,6 +115,7 @@ export function extractBugHeuristically(
     actualBehavior: description,
     expectedBehavior: "Hệ thống xử lý và lưu trữ dữ liệu chính xác, đúng nghiệp vụ quy định.",
     severity: "high",
+    subtasks: subtasks.length > 1 ? subtasks : undefined,
   };
 }
 
@@ -128,16 +142,18 @@ export async function extractTaskFromThread(params: {
 
   const prompt = `Bạn là trợ lý QA kỹ thuật cao cấp của hệ thống MaiVietLand ERP.
 Nhiệm vụ: Hãy phân tích đoạn thảo luận sau từ Slack thread và trích xuất thông tin tạo Bug Report chuẩn cho hệ thống Plane.
+Nếu phát hiện đoạn thảo luận đề cập đến nhiều lỗi, nhiều việc con (sub-tasks) hoặc nhiều trường hợp kiểm thử riêng biệt, hãy phân tách rõ Parent Bug và danh sách "subtasks".
 BẮT BUỘC chỉ trả về DUY NHẤT 1 đối tượng JSON hợp lệ, KHÔNG viết bất kỳ lời chào, giải thích hay markdown nào bên ngoài JSON.
 
 Schema JSON:
 {
-  "taskName": "[BUG] [Tên phân hệ] - Mô tả lỗi ngắn gọn (dưới 70 ký tự)",
-  "moduleName": "Tên phân hệ (ví dụ: Chia HH thực nhận, Quản lý Quỹ, Tạm ứng, Đặt cọc, CRM...)",
+  "taskName": "[BUG] [Tên phân hệ] - Mô tả lỗi tổng quát ngắn gọn (dưới 70 ký tự)",
+  "moduleName": "Tên phân hệ (ví dụ: Test phase 3.1, App Sale, CRM, Trợ lý AI, Design Revamp, Quản lý Quỹ...)",
   "stepsToReproduce": ["1. Truy cập màn hình...", "2. Thực hiện thao tác..."],
   "actualBehavior": "Mô tả lỗi thực tế gặp phải",
   "expectedBehavior": "Mô tả kết quả mong muốn đúng nghiệp vụ",
-  "severity": "Blocker / Critical / Major / Minor"
+  "severity": "Blocker / Critical / Major / Minor",
+  "subtasks": ["Tên sub-issue 1 nếu có nhiều lỗi hoặc các checklist cụ thể", "Tên sub-issue 2..."]
 }
 
 Nội dung thảo luận:
@@ -172,6 +188,10 @@ ${threadText || query}`;
         finalTaskName = `[BUG] [${moduleName}] - ${parsedJson.actualBehavior?.substring(0, 55) || "Lỗi nghiệp vụ"}`;
       }
 
+      const subtasks = Array.isArray(parsedJson.subtasks)
+        ? parsedJson.subtasks.map((s: any) => String(s).trim()).filter((s: string) => s.length > 0)
+        : undefined;
+
       return {
         taskName: finalTaskName,
         moduleName,
@@ -181,6 +201,7 @@ ${threadText || query}`;
         actualBehavior: String(parsedJson.actualBehavior || "Lỗi phát sinh trong quá trình thao tác"),
         expectedBehavior: String(parsedJson.expectedBehavior || "Hệ thống xử lý đúng quy định nghiệp vụ"),
         severity: planePriority,
+        subtasks: subtasks && subtasks.length > 0 ? subtasks : undefined,
       };
     }
   } catch (aiErr) {

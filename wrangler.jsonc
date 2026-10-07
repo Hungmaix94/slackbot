@@ -16,14 +16,14 @@
   "kv_namespaces": [
     {
       "binding": "KV",
-      "id": "9560e8749e6d4a85bc36cf9f264d85f7"
+      "id": "15e112fb617444adb5a2abd2055970b1"
     }
   ],
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "mvl-srs-db",
-      "database_id": "f9f46355-0946-486c-8660-0f48f1ca505e"
+      "database_id": "249f00c2-7129-4179-af20-9c7c34751423"
     }
   ],
   "vectorize": [

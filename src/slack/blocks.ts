@@ -114,6 +114,8 @@ export function createTaskCreatedCard(task: {
   attachmentsCount?: number;
   systemName?: string;
   projectName?: string;
+  moduleName?: string;
+  subtasksTree?: { name: string; url: string; displayId?: string }[];
 }): any[] {
   const system = task.systemName || "Plane";
   const displayId = task.displayId || task.id;
@@ -136,6 +138,13 @@ export function createTaskCreatedCard(task: {
     });
   }
 
+  if (task.moduleName) {
+    fields.push({
+      type: "mrkdwn",
+      text: `*Module:* 📦 *${task.moduleName}*`,
+    });
+  }
+
   fields.push(
     {
       type: "mrkdwn",
@@ -147,7 +156,7 @@ export function createTaskCreatedCard(task: {
     }
   );
 
-  return [
+  const blocks: any[] = [
     {
       type: "section",
       text: {
@@ -159,20 +168,37 @@ export function createTaskCreatedCard(task: {
       type: "section",
       fields,
     },
-    {
-      type: "actions",
-      elements: [
-        {
-          type: "button",
-          text: {
-            type: "plain_text",
-            text: `🔗 Mở Task ${system}`,
-            emoji: true,
-          },
-          url: task.url,
-          style: "primary",
-        },
-      ],
-    },
   ];
+
+  if (task.subtasksTree && task.subtasksTree.length > 0) {
+    const subtaskLines = task.subtasksTree
+      .map((st, idx) => `  ${idx === task.subtasksTree!.length - 1 ? "└──" : "├──"} [${st.displayId || "Subtask"}] ${st.name}`)
+      .join("\n");
+
+    blocks.push({
+      type: "section",
+      text: {
+        type: "mrkdwn",
+        text: `🌿 *Cấu trúc Phân cấp (${task.subtasksTree.length} sub-tasks):*\n<${task.url}|*${displayId}* - ${task.name}>\n\`\`\`\n${subtaskLines}\n\`\`\``,
+      },
+    });
+  }
+
+  blocks.push({
+    type: "actions",
+    elements: [
+      {
+        type: "button",
+        text: {
+          type: "plain_text",
+          text: `🔗 Mở Task ${system}`,
+          emoji: true,
+        },
+        url: task.url,
+        style: "primary",
+      },
+    ],
+  });
+
+  return blocks;
 }

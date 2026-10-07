@@ -181,7 +181,24 @@ app.post("/slack/commands", async (c) => {
   const channelId = formData.get("channel_id") || "";
   const userId = formData.get("user_id") || "";
 
-  const fullQuery = `${command} ${text}`.trim();
+  let fullQuery = `${command} ${text}`.trim();
+  if (command === "/bug-p31") {
+    fullQuery = `tạo bug [p31] ${text}`.trim();
+  } else if (command === "/bug-as") {
+    fullQuery = `tạo bug [as] ${text}`.trim();
+  } else if (command === "/bug-crm") {
+    fullQuery = `tạo bug [crm] ${text}`.trim();
+  } else if (command === "/bug-ai") {
+    fullQuery = `tạo bug [ai] ${text}`.trim();
+  } else if (command === "/bug-ui") {
+    fullQuery = `tạo bug [ui] ${text}`.trim();
+  } else if (command === "/plane-task" || command === "/create-task") {
+    fullQuery = `tạo task ${text}`.trim();
+  } else if (command === "/plane-bug" || command === "/create-bug") {
+    fullQuery = `tạo bug ${text}`.trim();
+  } else if (command === "/srs") {
+    fullQuery = `tra cứu srs ${text}`.trim();
+  }
 
   c.executionCtx.waitUntil(
     (async () => {

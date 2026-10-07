@@ -43,10 +43,22 @@ export function classifyIntent(query: string): AgentIntent {
 
   // 1. Tạo task hoặc báo bug trên Plane / ClickUp
   if (
+    q.startsWith("/bug-p31") ||
+    q.startsWith("/bug-as") ||
+    q.startsWith("/bug-crm") ||
+    q.startsWith("/bug-ai") ||
+    q.startsWith("/bug-ui") ||
     q.startsWith("/create_task") ||
     q.startsWith("/create-task") ||
     q.startsWith("/plane-task") ||
+    q.startsWith("/plane-bug") ||
+    q.startsWith("/create-bug") ||
     q.startsWith("/clickup-task") ||
+    q.startsWith("bug p31") ||
+    q.startsWith("bug as") ||
+    q.startsWith("bug crm") ||
+    q.startsWith("bug ai") ||
+    q.startsWith("bug ui") ||
     q.includes("tạo task plane") ||
     q.includes("tạo plane task") ||
     q.includes("tạo bug plane") ||
