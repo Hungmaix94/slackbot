@@ -721,15 +721,32 @@ export class AgentOrchestrator {
     // 11. Tạo các Sub-tasks con nếu phát hiện nhiều mục/lỗi trong thread
     const subtasksTree: { name: string; url: string; displayId?: string }[] = [];
     if (taskJson.subtasks && taskJson.subtasks.length > 0) {
-      for (const subName of taskJson.subtasks) {
+      for (const subItem of taskJson.subtasks) {
         try {
+          const subName = typeof subItem === "string" ? subItem : subItem.name;
+          let subAssigneeIds = assigneeIds;
+
+          // Nếu subtask có assignee riêng từ tag Slack, resolve riêng cho subtask đó
+          if (typeof subItem !== "string" && subItem.assigneeSlackId) {
+            const mapped = await resolvePlaneUserId(
+              subItem.assigneeSlackId,
+              this.slack,
+              this.env,
+              this.plane,
+              projectId
+            );
+            if (mapped.id) {
+              subAssigneeIds = [mapped.id];
+            }
+          }
+
           const subIssue = await this.plane.createIssue(projectId, {
             name: subName,
             description_html: `<p>Sub-task của parent issue: <a href="${issueUrl}">${createdIssue.name}</a></p>`,
             priority: taskJson.severity,
             state: stateId,
             parent: createdIssue.id,
-            assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
+            assignees: subAssigneeIds.length > 0 ? subAssigneeIds : undefined,
           });
 
           if (targetModule) {

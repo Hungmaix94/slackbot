@@ -1,3 +1,10 @@
+import { resolvePlaneModule } from "../plane/modules";
+
+export interface SubtaskItem {
+  name: string;
+  assigneeSlackId?: string;
+}
+
 export interface ExtractedTaskInfo {
   taskName: string;
   moduleName: string;
@@ -5,7 +12,7 @@ export interface ExtractedTaskInfo {
   actualBehavior: string;
   expectedBehavior: string;
   severity: "urgent" | "high" | "medium" | "low" | "none";
-  subtasks?: string[];
+  subtasks?: (string | SubtaskItem)[];
   targetModule?: string;
 }
 
@@ -58,64 +65,138 @@ export function extractBugHeuristically(
   commandText?: string
 ): ExtractedTaskInfo {
   const combined = [commandText, ...messages.map((m) => m.text || "")].filter(Boolean).join(" ");
-  // Bỏ các tag mention <@U...>
-  const clean = combined.replace(/<@[A-Z0-9]+>/g, "").trim();
 
-  // Tìm tên màn hình / phân hệ
-  let moduleName = "Chung";
-  let targetClean = clean.replace(/^(?:ở|tại)\s+/i, "");
-  const modPrefixMatch = targetClean.match(/^(?:màn\s+hình|màn|phân\s+hệ|trang)\s+([A-Za-z0-9À-ỹ\s]+?)(?:,|\.|-|\n|Nhập|Lỗi|lỗi|$)/i);
-  if (modPrefixMatch && modPrefixMatch[1]?.trim()) {
-    moduleName = modPrefixMatch[1].trim();
-  } else {
-    const modMatch = targetClean.match(
-      /(?:ở|tại|màn\s+hình|màn|phân\s+hệ|trang)\s+([A-Za-z0-9À-ỹ\s]+?)(?:,|\.|-|\n|Nhập|Lỗi|lỗi|$)/i
-    );
-    if (modMatch && modMatch[1]?.trim()) {
-      const rawMod = modMatch[1].trim();
-      if (rawMod.length >= 2 && rawMod.length <= 40) {
-        moduleName = rawMod;
+  // 1. Nhận diện module thông minh
+  const targetMod = resolvePlaneModule(commandText || "") || resolvePlaneModule(combined);
+  const moduleName = targetMod ? targetMod.name : "Chung";
+
+  const rawCmd = (commandText || "").trim();
+  let clean = combined
+    .replace(/<@[A-Z0-9]+>/g, "")
+    .replace(/\[\s*(?:p31|as|crm|ai|ui|chung)\s*\]/gi, "")
+    .replace(/(?:^|\s)-m\s+[a-z0-9_\-\.]+/gi, "")
+    .replace(/\b(?:p31|test31|phase\s*3\.1)\b/gi, "")
+    .trim();
+
+  // 2. Trích xuất danh sách subtasks kèm assignee Slack ID
+  const subtasks: SubtaskItem[] = [];
+  const sourceText = rawCmd || clean;
+  const lines = sourceText.split("\n");
+
+  if (lines.length > 1) {
+    for (const line of lines) {
+      const trimmed = line.trim();
+      const itemMatch = trimmed.match(/^(?:[-*•]|\d+[\.\)])\s+(.+)$/);
+      if (itemMatch && itemMatch[1]) {
+        const raw = itemMatch[1].trim();
+        const mMatch = raw.match(/<@([A-Z0-9]+)>/);
+        const assigneeSlackId = mMatch ? mMatch[1] : undefined;
+        let name = raw
+          .replace(/<@[A-Z0-9]+>/g, "")
+          .replace(/(?:cho|giao|assign)\s*@?[a-zA-Z0-9\._\-]+/gi, "")
+          .replace(/\s+(?:cho|giao|assign)\s*$/i, "")
+          .replace(/[\(\)]/g, "")
+          .trim();
+        if (name.length >= 3) {
+          name = name.charAt(0).toUpperCase() + name.slice(1);
+          subtasks.push({ name, assigneeSlackId });
+        }
       }
     }
   }
 
-  // Lọc bỏ từ khóa kích hoạt lệnh tạo task
-  let description = clean
-    .replace(/(?:tạo|báo|add)\s*(?:bug|task|lỗi)\s*(?:này|hộ|giúp)?\s*/gi, "")
-    .replace(/^(?:ở|tại)\s+(?:màn\s+hình|màn|phân\s+hệ|trang)?\s*/i, "")
-    .trim();
-
-  if (!description || description.length < 5) {
-    description = clean || `Lỗi phát hiện từ Slack thread ${threadTs}`;
-  }
-
-  // Trích xuất subtasks từ bullet points hoặc danh sách nếu có
-  const subtasks: string[] = [];
-  const lines = clean.split("\n");
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const itemMatch = trimmed.match(/^(?:[-*•]|\d+[\.\)])\s+(.{5,80})/);
-    if (itemMatch && itemMatch[1]) {
-      subtasks.push(itemMatch[1].trim());
+  // Nếu không có gạch đầu dòng, kiểm tra phân tách mệnh đề bằng dấu phẩy
+  if (subtasks.length === 0) {
+    const parts = sourceText.split(/[,;\n]+/).map((p) => p.trim()).filter(Boolean);
+    for (const part of parts) {
+      if (
+        /(?:tạo|báo|add)\s*(?:bug|task|lỗi)/i.test(part) &&
+        !/(?:update|cập nhật|sửa|fix|chip|diện tích|quỹ căn)/i.test(part)
+      ) {
+        continue;
+      }
+      const mMatch = part.match(/<@([A-Z0-9]+)>/);
+      const assigneeSlackId = mMatch ? mMatch[1] : undefined;
+      let name = part
+        .replace(/<@[A-Z0-9]+>/g, "")
+        .replace(/^(?:tạo|báo|add)\s*(?:bug|task|lỗi)\s*(?:p31|as|crm)?\s*(?:cho\s+)?/i, "")
+        .replace(/(?:cho|giao|assign)\s*@?[a-zA-Z0-9\._\-]+/gi, "")
+        .replace(/\s+(?:cho|giao|assign)\s*$/i, "")
+        .replace(/[\(\)]/g, "")
+        .trim();
+      if (name.length >= 3) {
+        if (/^các\s+thông\s+tin\s+diện\s+tích/i.test(name)) {
+          name = "Cập nhật các thông tin diện tích và đơn giá căn";
+        } else if (/^update\s+UI\s+chip\s+status/i.test(name)) {
+          name = "Update UI chip status trạng thái căn";
+        } else {
+          name = name.charAt(0).toUpperCase() + name.slice(1);
+        }
+        subtasks.push({ name, assigneeSlackId });
+      }
     }
   }
 
-  const shortDesc =
-    description.length > 60 ? description.substring(0, 57).trim() + "..." : description;
+  // 3. Tổng hợp tiêu đề Parent Bug chuẩn
+  let shortDesc = "";
+  if (lines.length > 1 && lines[0] && !lines[0].trim().startsWith("-")) {
+    shortDesc = lines[0]
+      .replace(/<@[A-Z0-9]+>/g, "")
+      .replace(/\[\s*(?:p31|as|crm|ai|ui|chung)\s*\]/gi, "")
+      .replace(/[:\-]$/, "")
+      .trim();
+  } else if (subtasks.length > 0) {
+    if (subtasks.some((s) => /chip\s+status/i.test(s.name)) && subtasks.some((s) => /diện\s+tích/i.test(s.name))) {
+      shortDesc = "Cập nhật bảng quỹ căn & trạng thái căn dự án";
+    } else {
+      shortDesc = subtasks.map((s) => s.name).join(" & ");
+    }
+  } else {
+    shortDesc = clean
+      .replace(/(?:tạo|báo|add)\s*(?:bug|task|lỗi)\s*(?:này|hộ|giúp)?\s*(?:cho\s+các\s+yêu\s+cầu\s+trong\s+thread|trong\s+thread)?\s*/gi, "")
+      .trim();
+  }
+
+  shortDesc = shortDesc.replace(/[\r\n]+/g, " ").replace(/\s{2,}/g, " ").trim();
+  if (shortDesc.length > 60) {
+    shortDesc = shortDesc.substring(0, 57).trim() + "...";
+  }
+  if (!shortDesc || shortDesc.length < 5) {
+    shortDesc = `Lỗi phát hiện từ Slack thread ${threadTs}`;
+  }
+
   const taskName = `[BUG] [${moduleName}] - ${shortDesc}`;
+
+  // Tìm URL trong nội dung thảo luận
+  const urls: string[] = [];
+  for (const m of messages) {
+    const urlMatches = (m.text || "").match(/https?:\/\/[^\s>]+/g);
+    if (urlMatches) {
+      for (const u of urlMatches) {
+        if (!urls.includes(u)) urls.push(u);
+      }
+    }
+  }
+
+  const stepsToReproduce = [
+    urls.length > 0
+      ? `1. Truy cập vào màn hình/liên kết: ${urls[0]}`
+      : `1. Truy cập vào màn hình/phân hệ: ${moduleName}`,
+    `2. Kiểm tra hiển thị thông tin bảng hàng / quỹ căn và trạng thái căn`,
+    `3. Quan sát các chi tiết chưa đồng bộ: chip status và số liệu diện tích`,
+  ];
 
   return {
     taskName,
     moduleName,
-    stepsToReproduce: [
-      `1. Truy cập vào màn hình/phân hệ: ${moduleName}`,
-      `2. Thực hiện thao tác: ${shortDesc}`,
-      `3. Quan sát kết quả xử lý của hệ thống`,
-    ],
-    actualBehavior: description,
-    expectedBehavior: "Hệ thống xử lý và lưu trữ dữ liệu chính xác, đúng nghiệp vụ quy định.",
+    stepsToReproduce,
+    actualBehavior:
+      subtasks.length > 0
+        ? subtasks.map((s) => `- ${s.name}`).join("\n")
+        : clean || `Lỗi phát sinh trong thread ${threadTs}`,
+    expectedBehavior: "Giao diện và dữ liệu hiển thị chính xác theo quy định nghiệp vụ và thiết kế.",
     severity: "high",
-    subtasks: subtasks.length > 1 ? subtasks : undefined,
+    subtasks: subtasks.length > 0 ? subtasks : undefined,
   };
 }
 
@@ -180,9 +261,22 @@ ${threadText || query}`;
       const rawSeverity = String(parsedJson.severity || "Major").toLowerCase();
       const planePriority = severityMap[rawSeverity] || "high";
 
-      // Kiểm tra xem taskName có bị generic không
-      let finalTaskName = String(parsedJson.taskName).trim();
-      const moduleName = String(parsedJson.moduleName || "Chung").trim();
+      // Nhận diện module thông minh nếu AI trả về Chung hoặc người dùng chỉ định tag
+      const resolvedMod = resolvePlaneModule(query || "") || resolvePlaneModule(threadText);
+      const moduleName = resolvedMod ? resolvedMod.name : String(parsedJson.moduleName || "Chung").trim();
+
+      // Chuẩn hóa taskName: loại bỏ xuống dòng, format [BUG] [ModuleName]
+      let finalTaskName = String(parsedJson.taskName || "")
+        .replace(/[\r\n]+/g, " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+
+      if (resolvedMod) {
+        finalTaskName = finalTaskName.replace(/\[\s*Chung\s*\]/gi, `[${moduleName}]`);
+        if (!finalTaskName.includes(`[${moduleName}]`)) {
+          finalTaskName = `[BUG] [${moduleName}] - ${finalTaskName.replace(/^\[BUG\]\s*(?:\[.*?\])?\s*-?\s*/i, "")}`;
+        }
+      }
 
       if (finalTaskName.toLowerCase().includes("lỗi phát hiện từ slack thread") || finalTaskName.length < 10) {
         finalTaskName = `[BUG] [${moduleName}] - ${parsedJson.actualBehavior?.substring(0, 55) || "Lỗi nghiệp vụ"}`;
