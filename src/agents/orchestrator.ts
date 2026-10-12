@@ -4,95 +4,16 @@ import { SrsSearchService } from "../rag/search";
 import { ClickUpClient } from "../clickup/client";
 import { PlaneClient } from "../plane/client";
 import { GitHubClient } from "../github/client";
-import { GeminiClient, GeminiContent, GeminiFunctionDeclaration } from "../ai/gemini";
-import { WorkersAiService, WorkersAiClient } from "../ai/workers-ai";
 import { classifyIntent } from "./router";
-import { getSmartCodeContext } from "./code-context";
 import {
-  SYSTEM_INSTRUCTION_DEFAULT,
-  SYSTEM_INSTRUCTION_BA,
-  SYSTEM_INSTRUCTION_QA,
-  SYSTEM_INSTRUCTION_DEV,
-} from "./prompts";
-import { parseAllMarkdownTables } from "../utils/markdown";
-import { generateExcelFromTables } from "../excel/generator";
-import { createAnswerBlocks, createProgressBlock, createTaskCreatedCard } from "../slack/blocks";
-import { resolvePlaneUserId } from "../slack/user-mapping";
-import { checkDuplicatePlaneIssues } from "../plane/duplicates";
-import { buildPlaneBugHtmlDescription } from "../plane/task-builder";
-import {
-  resolvePlaneProject,
-  setChannelDefaultProject,
-  getChannelDefaultProject,
-  formatProjectsListBlocks,
-} from "../plane/projects";
-import { resolvePlaneModule } from "../plane/modules";
-import { extractTaskFromThread } from "../ai/task-extractor";
+  SrsQaWorkflow,
+  TaskCreatorWorkflow,
+  PlaneSearchWorkflow,
+  ProjectConfigWorkflow,
+} from "../workflows";
 
-export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
-  {
-    name: "search_codebase",
-    description: "Tìm kiếm các file code hoặc biểu thức logic trong repository. QUAN TRỌNG: Mã nguồn dự án viết bằng tiếng Anh/Python/TypeScript. KHÔNG tìm bằng câu tiếng Việt. Bắt buộc dùng từ khóa kỹ thuật, tên model, hàm hoặc biến (ví dụ: 'SalesInvoice', 'sales_invoice', 'pdcdt', 'reconciliation', 'period', 'commission').",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        repo: {
-          type: "STRING",
-          description: "Tên repo hoặc alias: 'backend', 'web', 'mobile', 'chat', 'app-sale'.",
-        },
-        query: {
-          type: "STRING",
-          description: "Từ khóa code tiếng Anh, tên class, hàm, model (ví dụ: 'SalesInvoice', 'sales_invoice', 'reconciliation', 'period').",
-        },
-      },
-      required: ["repo", "query"],
-    },
-  },
-  {
-    name: "read_code_file",
-    description: "Đọc nội dung của một file code cụ thể từ GitHub. Có thể chỉ định khoảng dòng bắt đầu và kết thúc.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        repo: {
-          type: "STRING",
-          description: "Tên repo hoặc alias: 'backend', 'web', 'mobile', 'chat', 'app-sale'.",
-        },
-        filePath: {
-          type: "STRING",
-          description: "Đường dẫn file (ví dụ: 'apps/advances/services.py' hoặc 'src/api/schema.ts').",
-        },
-        startLine: {
-          type: "INTEGER",
-          description: "Dòng bắt đầu cần đọc (1-indexed).",
-        },
-        endLine: {
-          type: "INTEGER",
-          description: "Dòng kết thúc cần đọc.",
-        },
-      },
-      required: ["repo", "filePath"],
-    },
-  },
-  {
-    name: "list_repository_files",
-    description: "Liệt kê danh sách các file trong thư mục của một repository trên GitHub.",
-    parameters: {
-      type: "OBJECT",
-      properties: {
-        repo: {
-          type: "STRING",
-          description: "Tên repo: 'backend', 'web', 'mobile', 'chat', 'app-sale'.",
-        },
-        prefix: {
-          type: "STRING",
-          description: "Tiền tố thư mục cần duyệt (ví dụ: 'apps/booking' hoặc 'src/pages').",
-        },
-      },
-      required: ["repo"],
-    },
-  },
-];
+// Re-export CODE_TOOLS for backward compatibility
+export { CODE_TOOLS } from "../tools/code-tools";
 
 export class AgentOrchestrator {
   private env: Env;
@@ -102,10 +23,17 @@ export class AgentOrchestrator {
   private clickup?: ClickUpClient;
   private github?: GitHubClient;
 
+  // Workflows
+  private srsQaWorkflow: SrsQaWorkflow;
+  private taskCreatorWorkflow: TaskCreatorWorkflow;
+  private planeSearchWorkflow: PlaneSearchWorkflow;
+  private projectConfigWorkflow: ProjectConfigWorkflow;
+
   constructor(env: Env) {
     this.env = env;
     this.slack = new SlackClient(env.SLACK_BOT_TOKEN);
     this.srsSearch = new SrsSearchService(env);
+
     const planeKey = env.PLANE_API_KEY || "plane_api_dfeaa88d10704e32a1d15e45d0006318";
     if (planeKey) {
       this.plane = new PlaneClient(
@@ -114,14 +42,25 @@ export class AgentOrchestrator {
         env.PLANE_WORKSPACE_SLUG || "glinteco"
       );
     }
+
     if (env.CLICKUP_API_TOKEN) {
       this.clickup = new ClickUpClient(env.CLICKUP_API_TOKEN);
     }
+
     if (env.GITHUB_TOKEN) {
       this.github = new GitHubClient(env.GITHUB_TOKEN);
     }
+
+    // Khởi tạo các workflow chuyên biệt
+    this.projectConfigWorkflow = new ProjectConfigWorkflow(env, this.slack);
+    this.planeSearchWorkflow = new PlaneSearchWorkflow(env, this.slack, this.plane);
+    this.taskCreatorWorkflow = new TaskCreatorWorkflow(env, this.slack, this.plane);
+    this.srsQaWorkflow = new SrsQaWorkflow(env, this.srsSearch, this.slack, this.github);
   }
 
+  /**
+   * Facade tiếp nhận query từ Slack và điều phối tới đúng workflow
+   */
   async handleQuery(params: {
     channelId: string;
     threadTs: string;
@@ -129,7 +68,7 @@ export class AgentOrchestrator {
     query: string;
     history?: any[];
   }): Promise<void> {
-    const { channelId, threadTs, userId, query } = params;
+    const { channelId, threadTs, userId, query, history } = params;
     const targetThreadTs = threadTs;
 
     // 1. Gửi tin nhắn tiến trình đầu tiên
@@ -138,763 +77,65 @@ export class AgentOrchestrator {
       "⏳ Đang khởi động phân tích yêu cầu...",
       {
         thread_ts: targetThreadTs,
-        blocks: createProgressBlock(1, 3, "Đang phân tích ý định & tra cứu tài liệu SRS..."),
       }
     );
 
-    let timeoutId: any;
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(() => {
-        reject(new Error("TIMEOUT_22S"));
-      }, 22000);
-    });
+    const progressMsgTs = progressMsg.ts;
 
     try {
-      await Promise.race([
-        this.processQuery({
-          channelId,
-          targetThreadTs,
-          userId,
-          query,
-          history: params.history,
-          progressMsgTs: progressMsg.ts,
-        }),
-        timeoutPromise,
-      ]);
-    } catch (err: any) {
-      console.error("Lỗi xử lý Agent:", err);
-      const isTimeout = err?.message === "TIMEOUT_22S";
-      const errorMsg = isTimeout
-        ? "⏱️ *Thời gian xử lý vượt quá giới hạn an toàn (22s)*.\n\n💡 *Gợi ý*: Tác vụ tra cứu và đọc mã nguồn tốn nhiều thời gian suy luận. Bạn vui lòng chỉ định trực tiếp mã lỗi hoặc đường dẫn file (ví dụ: `apps/notifications/tasks.py`) để bot trả lời nhanh trong 1 bước."
-        : `❌ *Lỗi khi xử lý yêu cầu:* ${err.message || String(err)}`;
+      const intent = classifyIntent(query);
 
-      await this.slack.updateMessage(
-        channelId,
-        progressMsg.ts,
-        errorMsg,
-        {
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: errorMsg,
-              },
-            },
-          ],
-        }
-      );
-    } finally {
-      clearTimeout(timeoutId);
-    }
-  }
-
-  private async processQuery(params: {
-    channelId: string;
-    targetThreadTs: string;
-    userId: string;
-    query: string;
-    history?: any[];
-    progressMsgTs: string;
-  }): Promise<void> {
-    const { channelId, targetThreadTs, userId, query, history, progressMsgTs } = params;
-
-    const intent = classifyIntent(query);
-
-    // XỬ LÝ INTENT: XEM DANH SÁCH PROJECT PLANE
-    if (intent === "LIST_PROJECTS") {
-      await this.handleListProjects(channelId, targetThreadTs, progressMsgTs);
-      return;
-    }
-
-    // XỬ LÝ INTENT: GÁN DEFAULT PROJECT CHO CHANNEL
-    if (intent === "SET_PROJECT") {
-      await this.handleSetProject(channelId, targetThreadTs, query, progressMsgTs);
-      return;
-    }
-
-    // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
-    if (intent === "CREATE_TASK") {
-      await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsgTs, query);
-      return;
-    }
-
-    // XỬ LÝ INTENT: TRA CỨU BUG TRÊN PLANE
-    if (intent === "SEARCH_PLANE" || intent === "SEARCH_CLICKUP") {
-      await this.handleSearchPlane(channelId, targetThreadTs, query, progressMsgTs);
-      return;
-    }
-
-    // 2. Tra cứu RAG trong SRS
-    await this.slack.updateMessage(
-      channelId,
-      progressMsgTs,
-      "⏳ Đang tra cứu tài liệu SRS...",
-      {
-        blocks: createProgressBlock(2, 3, "Đang đối chiếu tài liệu SRS & lịch sử hội thoại..."),
-      }
-    );
-
-    const srsResults = await this.srsSearch.search(query, 5);
-    let srsContext = "";
-    if (srsResults.length > 0) {
-      srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU TỪ HỆ THỐNG ===\n";
-      srsResults.forEach((r, idx) => {
-        srsContext += `\n[Tài liệu ${idx + 1}: ${r.docId} | Đề mục: ${r.heading}]\n${r.content}\n`;
-      });
-    } else {
-      srsContext = "\n\n[Thông báo: Không tìm thấy tài liệu SRS tương ứng trong cơ sở dữ liệu]";
-    }
-
-    // 3. Chọn System Instruction theo Intent & Chủ động tải mã nguồn
-    let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
-    if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
-    if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
-
-    let codeContext = "";
-    if (this.github) {
-      // Chủ động kiểm tra và pre-fetch mã nguồn nếu có đường dẫn file hoặc thông báo lỗi
-      codeContext = await getSmartCodeContext(query, this.github);
-    }
-
-    if (intent === "CODE_DEV" || codeContext) {
-      if (!this.github) {
-        await this.slack.updateMessage(
-          channelId,
-          progressMsgTs,
-          "⚠️ Tính năng tra cứu mã nguồn yêu cầu cấu hình `GITHUB_TOKEN`. Bạn vui lòng cấu hình secret: `npx wrangler secret put GITHUB_TOKEN`."
-        );
+      // XỬ LÝ INTENT: XEM DANH SÁCH PROJECT PLANE
+      if (intent === "LIST_PROJECTS") {
+        await this.projectConfigWorkflow.handleList({ channelId, progressMsgTs });
         return;
       }
-      systemInstruction = SYSTEM_INSTRUCTION_DEV;
 
-      if (codeContext) {
-        await this.slack.updateMessage(
+      // XỬ LÝ INTENT: GÁN DEFAULT PROJECT CHO CHANNEL
+      if (intent === "SET_PROJECT") {
+        await this.projectConfigWorkflow.handleSet({ channelId, query, progressMsgTs });
+        return;
+      }
+
+      // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
+      if (intent === "CREATE_TASK") {
+        await this.taskCreatorWorkflow.handleCreateFromThread({
           channelId,
+          threadTs: targetThreadTs,
+          slackUserId: userId,
           progressMsgTs,
-          "⏳ [Code Agent] Đã nạp trực tiếp mã nguồn backend liên quan, đang phân tích logic...",
-          {
-            blocks: createProgressBlock(2, 3, "Đã đọc trực tiếp mã nguồn backend, đang mổ xẻ nguyên nhân..."),
-          }
-        );
-      }
-    }
-
-    // 4. Xây dựng nội dung gửi tới AI
-    const contents: GeminiContent[] = [];
-
-    // Nạp lịch sử hội thoại gần nhất nếu có (lọc sạch tool call giả lập trong lịch sử)
-    if (history && history.length > 0) {
-      for (const msg of history.slice(-6)) {
-        const role = msg.bot_id ? "model" : "user";
-        let text = (msg.text || "")
-          .replace(/<@[A-Z0-9_]+(?:\|[^>]+)?>/gi, "")
-          .replace(/<![a-zA-Z0-9_]+>/g, "")
-          .trim();
-        if (role === "model") {
-          text = text
-            .replace(/Gọi tool:[\s\S]*?(?=\n\n|$)/gi, "")
-            .replace(/search_codebase\([\s\S]*?\)/gi, "")
-            .replace(/read_code_file\([\s\S]*?\)/gi, "")
-            .replace(/list_repository_files\([\s\S]*?\)/gi, "")
-            .replace(/```(?:json)?\s*\{\s*"query"[\s\S]*?\}\s*```/gi, "")
-            .replace(/\{"query":\s*"[^"]*",\s*"repo":\s*"[^"]*"\}/gi, "")
-            .trim();
-        }
-        if (text) {
-          contents.push({ role, parts: [{ text }] });
-        }
-      }
-    }
-
-    contents.push({
-      role: "user",
-      parts: [{ text: `${query}\n\n${srsContext}${codeContext}` }],
-    });
-
-    // 5. Khởi tạo AI Client: Cloudflare Workers AI (mặc định) hoặc Gemini
-    const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
-    const aiClient = useWorkersAi && this.env.AI
-      ? new WorkersAiClient(this.env)
-      : new GeminiClient(this.env);
-
-    // Chỉ cấp tool khi có cấu hình GitHub Client thực tế. Nếu không có tool, chỉ chạy đúng 1 turn dứt khoát.
-    const tools = codeContext ? undefined : (this.github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
-    let responseText = "";
-    const maxTurns = (tools && this.github) ? 2 : 1;
-    let currentTurn = 0;
-
-    while (currentTurn < maxTurns) {
-      currentTurn++;
-      const isFinalTurn = currentTurn === maxTurns;
-      const activeTools = isFinalTurn ? undefined : tools;
-
-      let turnInstruction = systemInstruction;
-      if (!activeTools) {
-        turnInstruction += "\n\nLƯU Ý QUAN TRỌNG: Hiện tại bạn KHÔNG có công cụ đọc mã nguồn. Bạn BẮT BUỘC phải phân tích và trả lời đầy đủ, chi tiết, dứt khoát dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool (như 'Gọi tool:' hoặc 'search_codebase'), TUYỆT ĐỐI KHÔNG nói 'cần tra cứu thêm mã nguồn'.";
-      }
-      if (isFinalTurn) {
-        turnInstruction += "\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và nghiệp vụ hệ thống để giải thích tường tận và đưa ra đối chiếu rõ ràng bằng tiếng Việt. TUYỆT ĐỐI KHÔNG gọi thêm tool.";
+          commandQuery: query,
+        });
+        return;
       }
 
-      const aiResponse = await aiClient.generateContent({
-        contents,
-        systemInstruction: turnInstruction,
-        tools: activeTools,
-        temperature: 0.2,
+      // XỬ LÝ INTENT: TRA CỨU BUG TRÊN PLANE
+      if (intent === "SEARCH_PLANE" || intent === "SEARCH_CLICKUP") {
+        await this.planeSearchWorkflow.handleSearch({ channelId, query, progressMsgTs });
+        return;
+      }
+
+      // MẶC ĐỊNH: Luồng hỏi đáp SRS RAG & Code Drift & xuất Excel
+      await this.srsQaWorkflow.handleQuery({
+        channelId,
+        targetThreadTs,
+        query,
+        intent,
+        progressMsgTs,
+        history,
       });
-
-      if (!isFinalTurn && aiResponse.functionCalls && aiResponse.functionCalls.length > 0 && this.github) {
-        for (const call of aiResponse.functionCalls) {
-          contents.push({
-            role: "model",
-            parts: [{ functionCall: call }],
-          });
-
-          let toolResult = "";
-          try {
-            if (call.name === "search_codebase") {
-              const repo = call.args.repo || "backend";
-              const q = call.args.query || "";
-              await this.slack.updateMessage(
-                channelId,
-                progressMsgTs,
-                `⏳ [Code Agent] Đang tìm kiếm "${q}" trong repo ${repo}...`,
-                {
-                  blocks: createProgressBlock(2, 3, `Đang tìm "${q}" trong repo ${repo}...`),
-                }
-              );
-              const searchRes = await this.github.searchCode(repo, q);
-              toolResult = JSON.stringify(searchRes);
-            } else if (call.name === "read_code_file") {
-              const repo = call.args.repo || "backend";
-              const filePath = call.args.filePath || "";
-              await this.slack.updateMessage(
-                channelId,
-                progressMsgTs,
-                `⏳ [Code Agent] Đang đọc file ${filePath} (${repo})...`,
-                {
-                  blocks: createProgressBlock(2, 3, `Đang đọc ${filePath} (${repo})...`),
-                }
-              );
-              const fileRes = await this.github.readFile(repo, filePath, {
-                startLine: call.args.startLine,
-                endLine: call.args.endLine || (call.args.startLine ? call.args.startLine + 100 : 120),
-              });
-              toolResult = fileRes.content;
-            } else if (call.name === "list_repository_files") {
-              const repo = call.args.repo || "backend";
-              const prefix = call.args.prefix || "";
-              const listRes = await this.github.listFiles(repo, { prefix });
-              toolResult = JSON.stringify(listRes);
-            } else {
-              toolResult = "Unknown function call";
-            }
-          } catch (toolErr: any) {
-            toolResult = `Lỗi thực thi tool ${call.name}: ${toolErr.message || String(toolErr)}`;
-          }
-
-          contents.push({
-            role: "user",
-            parts: [
-              {
-                functionResponse: {
-                  name: call.name,
-                  response: { result: toolResult },
-                },
-              },
-            ],
-          });
-        }
-      } else {
-        responseText = aiResponse.text;
-        break;
-      }
-    }
-
-    // Dọn sạch các dòng hallucinate giả lập tool call (nếu có)
-    responseText = responseText
-      .replace(/Gọi tool:[\s\S]*?(?=\n\n|$)/gi, "")
-      .replace(/search_codebase\([\s\S]*?\)/gi, "")
-      .replace(/read_code_file\([\s\S]*?\)/gi, "")
-      .replace(/list_repository_files\([\s\S]*?\)/gi, "")
-      .replace(/```(?:json)?\s*\{\s*"query"[\s\S]*?\}\s*```/gi, "")
-      .replace(/\{"query":\s*"[^"]*",\s*"repo":\s*"[^"]*"\}/gi, "")
-      .trim();
-
-    // 6. Kiểm tra xem có bảng Markdown cần xuất Excel không
-    const tables = parseAllMarkdownTables(responseText);
-    let excelData: any = null;
-
-    if (tables.length > 0) {
+    } catch (err: any) {
+      console.error("Lỗi trong quá trình xử lý Agent Orchestrator:", err);
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        "📊 Đang sinh file Excel kịch bản...",
-        {
-          blocks: createProgressBlock(3, 3, "Đang định dạng bảng tính Excel chuyên nghiệp..."),
-        }
+        `❌ Đã xảy ra lỗi khi xử lý: ${err.message || String(err)}`
       );
-
-      try {
-        excelData = await generateExcelFromTables(tables, query);
-      } catch (excelErr) {
-        console.error("Lỗi tạo file Excel:", excelErr);
-      }
-    }
-
-    // 7. Cập nhật câu trả lời chính thức bằng Block Kit
-    const answerBlocks = createAnswerBlocks(responseText, {
-      hasExcel: !!excelData,
-      excelFileName: excelData?.filename,
-      isUsecase: intent === "BA",
-      isUat: intent === "QA",
-    });
-
-    await this.slack.updateMessage(channelId, progressMsgTs, responseText, {
-      blocks: answerBlocks,
-    });
-
-    // 8. Nếu có file Excel, upload trực tiếp lên Slack
-    if (excelData) {
-      try {
-        await this.slack.uploadFileV2(
-          channelId,
-          excelData.buffer,
-          excelData.filename,
-          excelData.isUsecase ? "Danh sách UseCase (Sinh tự động)" : "Kịch bản UAT (Sinh tự động)",
-          "📊 Tôi đã tạo sẵn file Excel này theo định dạng chuẩn để bạn tải về trực tiếp:",
-          targetThreadTs
-        );
-
-        // Tùy chọn: Lưu backup vào Cloudflare R2 nếu có binding
-        if (this.env.R2) {
-          const r2Key = `exports/${Date.now()}_${excelData.filename}`;
-          await this.env.R2.put(r2Key, excelData.buffer);
-        }
-      } catch (uploadErr) {
-        console.error("Lỗi khi upload file Excel lên Slack:", uploadErr);
-      }
     }
   }
 
-  private async handleListProjects(
-    channelId: string,
-    threadTs: string,
-    progressMsgTs: string
-  ): Promise<void> {
-    const currentChannelProj = await getChannelDefaultProject(channelId, this.env);
-    const blocks = formatProjectsListBlocks(currentChannelProj);
-    await this.slack.updateMessage(channelId, progressMsgTs, "Danh sách Project trên Plane:", {
-      blocks,
-    });
-  }
-
-  private async handleSetProject(
-    channelId: string,
-    threadTs: string,
-    query: string,
-    progressMsgTs: string
-  ): Promise<void> {
-    const parts = query
-      .replace(/^\/set[-_]project/i, "")
-      .replace(/^set\s+project/i, "")
-      .replace(/^đổi\s+project/i, "")
-      .replace(/^chọn\s+project/i, "")
-      .replace(/^gán\s+project\s+mặc\s+định/i, "")
-      .replace(/^đặt\s+project\s+mặc\s+định/i, "")
-      .trim();
-
-    if (!parts) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        "⚠️ Vui lòng cung cấp mã hoặc tên Project bạn muốn gán.\nVí dụ: `@bot set project CRM` hoặc `@bot set project MVLGO`."
-      );
-      return;
-    }
-
-    const matchedProj = await setChannelDefaultProject(channelId, parts, this.env);
-    if (!matchedProj) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        `⚠️ Không tìm thấy project nào khớp với từ khóa *"${parts}"*.\nHãy gõ \`@bot projects\` để xem danh sách project hợp lệ.`
-      );
-      return;
-    }
-
-    await this.slack.updateMessage(
-      channelId,
-      progressMsgTs,
-      `✅ Đã đặt project mặc định cho kênh này thành *${matchedProj.name}* (\`${matchedProj.identifier}\`).\nTừ bây giờ mọi bug/task tạo trong kênh này sẽ mặc định được tạo trên project này!`
-    );
-  }
-
-  private async handleCreateTaskFromThread(
-    channelId: string,
-    threadTs: string,
-    slackUserId: string,
-    progressMsgTs: string,
-    commandQuery?: string
-  ): Promise<void> {
-    if (!this.plane) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        "⚠️ Chưa cấu hình Plane API Key trong môi trường."
-      );
-      return;
-    }
-
-    // 1. Lấy toàn bộ tin nhắn trong thread
-    const messages = await this.slack.getConversationReplies(channelId, threadTs);
-    if (!messages || messages.length === 0) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        "⚠️ Không tìm thấy nội dung tin nhắn trong thread này để tạo task."
-      );
-      return;
-    }
-
-    // 2. Xác định dự án mục tiêu (Dynamic Project Resolution)
-    // Chỉ đọc các tin nhắn từ người dùng (loại bỏ tin nhắn của bot để tránh match nhầm ví dụ)
-    const userMessagesText = messages
-      .filter((m) => !m.bot_id && m.subtype !== "bot_message")
-      .map((m) => m.text || "")
-      .join(" ");
-
-    const targetProject = await resolvePlaneProject({
-      text: `${commandQuery || ""} ${userMessagesText}`,
-      channelId,
-      env: this.env,
-      planeClient: this.plane,
-    });
-    const projectId = targetProject.id;
-    const projectIdentifier = targetProject.identifier;
-
-    // 3. Nhận diện người tạo / assignees trên Plane cho dự án này
-    const userMatch = await resolvePlaneUserId(
-      slackUserId,
-      this.slack,
-      this.env,
-      this.plane,
-      projectId
-    );
-
-    // Quét toàn bộ mentions trong thread để phát hiện người được giao việc / xử lý lỗi
-    const mentionRegex = /<@([A-Z0-9]+)>/g;
-    const candidateSlackUserIds = new Set<string>();
-
-    for (const msg of messages) {
-      if (msg.text) {
-        let match: RegExpExecArray | null;
-        while ((match = mentionRegex.exec(msg.text)) !== null) {
-          const mentionedId = match[1];
-          if (mentionedId && mentionedId !== slackUserId) {
-            candidateSlackUserIds.add(mentionedId);
-          }
-        }
-      }
-    }
-
-    const resolvedAssignees: { id: string; name: string }[] = [];
-
-    // Ưu tiên resolve các user được tag trong thread
-    for (const mSlackId of candidateSlackUserIds) {
-      const resolved = await resolvePlaneUserId(
-        mSlackId,
-        this.slack,
-        this.env,
-        this.plane,
-        projectId
-      );
-      if (resolved.id && !resolvedAssignees.some((a) => a.id === resolved.id)) {
-        resolvedAssignees.push({ id: resolved.id, name: resolved.name });
-      }
-    }
-
-    // Nếu không có ai được tag hoặc không map được ai từ tag, gán cho người yêu cầu (userMatch)
-    if (resolvedAssignees.length === 0 && userMatch.id) {
-      resolvedAssignees.push({ id: userMatch.id, name: userMatch.name });
-    }
-
-    // Fallback: nếu người yêu cầu cũng chưa map được, thử fallback người gửi tin nhắn đầu tiên của thread
-    if (resolvedAssignees.length === 0 && messages[0]?.user && messages[0].user !== slackUserId) {
-      const reporterMatch = await resolvePlaneUserId(
-        messages[0].user,
-        this.slack,
-        this.env,
-        this.plane,
-        projectId
-      );
-      if (reporterMatch.id) {
-        resolvedAssignees.push({ id: reporterMatch.id, name: reporterMatch.name });
-      }
-    }
-
-    const assigneeIds = resolvedAssignees.map((a) => a.id);
-    const assigneeDisplayNames = resolvedAssignees.map((a) => a.name).filter(Boolean).join(", ");
-
-    // 4. Trích xuất nội dung Bug Report bằng AI + Heuristic Fallback
-    const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
-    const aiClient = useWorkersAi && this.env.AI
-      ? new WorkersAiClient(this.env)
-      : new GeminiClient(this.env);
-
-    const taskJson = await extractTaskFromThread({
-      messages,
-      threadTs,
-      query: commandQuery || "",
-      aiClient,
-    });
-
-    // 5. Kiểm tra xem có bug nào bị trùng không (Smart Duplicate Check trên Plane)
-    const duplicateCheck = await checkDuplicatePlaneIssues(
-      this.plane,
-      projectId,
-      taskJson.taskName,
-      projectIdentifier
-    );
-    let duplicateWarning = "";
-    if (duplicateCheck.hasDuplicate) {
-      const dup = duplicateCheck.duplicateIssues[0];
-      const dupDisplay = dup.sequenceId ? `${projectIdentifier}-${dup.sequenceId}` : dup.id.slice(0, 8);
-      duplicateWarning = `\n> ⚠️ *Lưu ý trùng lặp:* Phát hiện task tương tự trên Plane: <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
-    }
-
-    // 6. Thu thập file đính kèm từ Slack & liên kết ngoài
-    const evidenceFiles: { name: string; url: string; mimetype?: string }[] = [];
-    const externalLinks: { name: string; url: string }[] = [];
-
-    for (const msg of messages) {
-      if (msg.files && Array.isArray(msg.files)) {
-        for (const f of msg.files) {
-          if (f.url_private) {
-            evidenceFiles.push({
-              name: f.name || "Tệp đính kèm Slack",
-              url: f.url_private,
-              mimetype: f.mimetype || "image/png",
-            });
-          }
-        }
-      }
-      if (msg.text) {
-        const urlMatches = msg.text.match(/https?:\/\/[^\s>]+/g);
-        if (urlMatches) {
-          for (const u of urlMatches) {
-            if (!u.includes("slack.com") && !externalLinks.some((l) => l.url === u)) {
-              let linkName = u;
-              if (u.includes("portal.maivietland.vn")) linkName = "Cổng thông tin Portal MaiVietLand";
-              else if (u.includes("sale.maivietland.vn")) linkName = "Trang bán hàng App Sale";
-              externalLinks.push({ name: linkName, url: u });
-            }
-          }
-        }
-      }
-    }
-
-    // 7. Tạo mô tả task chuẩn theo HTML cho Plane
-    const slackThreadUrl = `https://slack.com/app_redirect?channel=${channelId}&thread_ts=${threadTs}`;
-    const descriptionHtml = buildPlaneBugHtmlDescription({
-      moduleName: taskJson.moduleName,
-      environment: "Staging",
-      deviceInfo: "Chrome / Web",
-      severity: taskJson.severity,
-      stepsToReproduce: taskJson.stepsToReproduce || [],
-      actualBehavior: taskJson.actualBehavior,
-      expectedBehavior: taskJson.expectedBehavior,
-      slackThreadUrl,
-      slackMetadata: `channel_id=${channelId} thread_ts=${threadTs} project=${projectIdentifier}`,
-      nativeAttachmentsCount: evidenceFiles.length,
-      externalLinks,
-    });
-
-    // 8. Tạo task trên Plane (tự động truy vấn state mặc định / backlog hợp lệ của chính dự án đó)
-    let stateId: string | undefined = undefined;
-    try {
-      const states = await this.plane.getProjectStates(projectId);
-      const defaultState =
-        states.find((s) => s.default) ||
-        states.find((s) => s.group === "backlog") ||
-        states.find((s) => s.group === "unstarted") ||
-        states[0];
-      if (defaultState) {
-        stateId = defaultState.id;
-      }
-    } catch (stateErr) {
-      console.warn("Lỗi lấy default state cho project:", stateErr);
-    }
-
-    const createdIssue = await this.plane.createIssue(projectId, {
-      name: taskJson.taskName,
-      description_html: descriptionHtml,
-      priority: taskJson.severity,
-      state: stateId,
-      assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
-    });
-
-    // 9. Tải file từ Slack và upload trực tiếp làm file đính kèm vào mục Attachments của Plane issue
-    if (evidenceFiles.length > 0 && this.plane) {
-      for (const f of evidenceFiles) {
-        try {
-          const fileBuffer = await this.slack.downloadFile(f.url);
-          await this.plane.uploadIssueAttachment(
-            projectId,
-            createdIssue.id,
-            fileBuffer,
-            f.name,
-            f.mimetype || "image/png"
-          );
-        } catch (attErr) {
-          console.warn(`Lỗi upload attachment "${f.name}" lên Plane:`, attErr);
-        }
-      }
-    }
-
-    // 10. Gán issue vào Module tương ứng (nếu phát hiện alias p31, as, crm, ai, ui...)
-    const targetModule = resolvePlaneModule(commandQuery || taskJson.moduleName);
-    if (targetModule) {
-      try {
-        await this.plane.addIssueToModule(projectId, targetModule.id, createdIssue.id);
-      } catch (modErr) {
-        console.warn("Lỗi gán module cho issue:", modErr);
-      }
-    }
-
-    const issueUrl = this.plane.getIssueWebUrl(
-      projectId,
-      createdIssue.id,
-      projectIdentifier,
-      createdIssue.sequence_id
-    );
-
-    // 11. Tạo các Sub-tasks con nếu phát hiện nhiều mục/lỗi trong thread
-    const subtasksTree: { name: string; url: string; displayId?: string }[] = [];
-    if (taskJson.subtasks && taskJson.subtasks.length > 0) {
-      for (const subItem of taskJson.subtasks) {
-        try {
-          const subName = typeof subItem === "string" ? subItem : subItem.name;
-          let subAssigneeIds = assigneeIds;
-
-          // Nếu subtask có assignee riêng từ tag Slack, resolve riêng cho subtask đó
-          if (typeof subItem !== "string" && subItem.assigneeSlackId) {
-            const mapped = await resolvePlaneUserId(
-              subItem.assigneeSlackId,
-              this.slack,
-              this.env,
-              this.plane,
-              projectId
-            );
-            if (mapped.id) {
-              subAssigneeIds = [mapped.id];
-            }
-          }
-
-          const subIssue = await this.plane.createIssue(projectId, {
-            name: subName,
-            description_html: `<p>Sub-task của parent issue: <a href="${issueUrl}">${createdIssue.name}</a></p>`,
-            priority: taskJson.severity,
-            state: stateId,
-            parent: createdIssue.id,
-            assignees: subAssigneeIds.length > 0 ? subAssigneeIds : undefined,
-          });
-
-          if (targetModule) {
-            await this.plane.addIssueToModule(projectId, targetModule.id, subIssue.id);
-          }
-
-          const subDisplayId = subIssue.sequence_id
-            ? `${projectIdentifier}-${subIssue.sequence_id}`
-            : subIssue.id.slice(0, 8);
-          const subUrl = this.plane.getIssueWebUrl(
-            projectId,
-            subIssue.id,
-            projectIdentifier,
-            subIssue.sequence_id
-          );
-          subtasksTree.push({ name: subName, url: subUrl, displayId: subDisplayId });
-        } catch (subErr) {
-          console.warn("Lỗi tạo subtask trên Plane:", subErr);
-        }
-      }
-    }
-
-    // 12. Cập nhật thông báo lên Slack
-    const displayId = createdIssue.sequence_id
-      ? `${projectIdentifier}-${createdIssue.sequence_id}`
-      : createdIssue.id.slice(0, 8);
-
-    const cardBlocks = createTaskCreatedCard({
-      id: createdIssue.id,
-      displayId,
-      name: createdIssue.name,
-      url: issueUrl,
-      assigneeName: assigneeDisplayNames || userMatch.name || "Chưa gán",
-      status: "Backlog",
-      systemName: "Plane",
-      projectName: `${targetProject.name} (${targetProject.identifier})`,
-      moduleName: targetModule ? targetModule.name : undefined,
-      subtasksTree: subtasksTree.length > 0 ? subtasksTree : undefined,
-      attachmentsCount: evidenceFiles.length,
-    });
-
-    if (duplicateWarning) {
-      cardBlocks.splice(1, 0, {
-        type: "section",
-        text: { type: "mrkdwn", text: duplicateWarning },
-      });
-    }
-
-    await this.slack.updateMessage(channelId, progressMsgTs, "Đã tạo task Plane thành công!", {
-      blocks: cardBlocks,
-    });
-  }
-
-  private async handleSearchPlane(
-    channelId: string,
-    threadTs: string,
-    query: string,
-    progressMsgTs: string
-  ): Promise<void> {
-    if (!this.plane) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        "⚠️ Chưa cấu hình Plane API Key."
-      );
-      return;
-    }
-
-    const projectId = this.env.PLANE_DEFAULT_PROJECT_ID || "e92f7ba8-0db9-487f-a21c-13712d226eb8";
-    const projectIdentifier = "MVLCTV";
-    const issues = await this.plane.searchIssues(projectId, query, true);
-
-    if (issues.length === 0) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        `🔍 Không tìm thấy bug/task nào liên quan đến từ khóa *"${query}"* trên Plane.`
-      );
-      return;
-    }
-
-    let reply = `🔍 *Tìm thấy ${issues.length} task/bug liên quan trên Plane:*\n\n`;
-    issues.slice(0, 8).forEach((issue) => {
-      const issueUrl = this.plane!.getIssueWebUrl(
-        projectId,
-        issue.id,
-        projectIdentifier,
-        issue.sequence_id
-      );
-      const displayId = issue.sequence_id
-        ? `${projectIdentifier}-${issue.sequence_id}`
-        : issue.id.slice(0, 8);
-      const stateName = issue.state_detail?.name || "Open";
-      reply += `- <${issueUrl}|[${displayId}]> *${issue.name}* (Trạng thái: \`${stateName}\`)\n`;
-    });
-
-    await this.slack.updateMessage(channelId, progressMsgTs, reply);
+  // Expose workflow cho các service hoặc route khác tái sử dụng
+  getSrsQaWorkflow(): SrsQaWorkflow {
+    return this.srsQaWorkflow;
   }
 }
