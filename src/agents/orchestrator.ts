@@ -287,12 +287,18 @@ export class AgentOrchestrator {
     if (history && history.length > 0) {
       for (const msg of history.slice(-6)) {
         const role = msg.bot_id ? "model" : "user";
-        let text = (msg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
+        let text = (msg.text || "")
+          .replace(/<@[A-Z0-9_]+(?:\|[^>]+)?>/gi, "")
+          .replace(/<![a-zA-Z0-9_]+>/g, "")
+          .trim();
         if (role === "model") {
           text = text
-            .replace(/Gọi tool:\s*[a-zA-Z0-9_]+\s*\(.*?\)/g, "")
-            .replace(/search_codebase\(\{.*?\}\)/g, "")
-            .replace(/read_code_file\(\{.*?\}\)/g, "")
+            .replace(/Gọi tool:[\s\S]*?(?=\n\n|$)/gi, "")
+            .replace(/search_codebase\([\s\S]*?\)/gi, "")
+            .replace(/read_code_file\([\s\S]*?\)/gi, "")
+            .replace(/list_repository_files\([\s\S]*?\)/gi, "")
+            .replace(/```(?:json)?\s*\{\s*"query"[\s\S]*?\}\s*```/gi, "")
+            .replace(/\{"query":\s*"[^"]*",\s*"repo":\s*"[^"]*"\}/gi, "")
             .trim();
         }
         if (text) {
@@ -312,10 +318,10 @@ export class AgentOrchestrator {
       ? new WorkersAiClient(this.env)
       : new GeminiClient(this.env);
 
-    // Nếu đã có codeContext nạp sẵn, không cần dùng tool gọi lại để tránh timeout 30s của Workers
+    // Chỉ cấp tool khi có cấu hình GitHub Client thực tế. Nếu không có tool, chỉ chạy đúng 1 turn dứt khoát.
     const tools = codeContext ? undefined : (this.github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
     let responseText = "";
-    const maxTurns = codeContext ? 1 : 2; // Tối đa 2 turns để không bao giờ vượt quá 30s Cloudflare
+    const maxTurns = (tools && this.github) ? 2 : 1;
     let currentTurn = 0;
 
     while (currentTurn < maxTurns) {
@@ -325,7 +331,7 @@ export class AgentOrchestrator {
 
       let turnInstruction = systemInstruction;
       if (!activeTools) {
-        turnInstruction += "\n\nLƯU Ý: Hiện tại không có công cụ gọi hàm đọc code ngoài. Bạn hãy trả lời trực tiếp câu hỏi cho người dùng dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool như 'Gọi tool:' hay 'search_codebase'.";
+        turnInstruction += "\n\nLƯU Ý QUAN TRỌNG: Hiện tại bạn KHÔNG có công cụ đọc mã nguồn. Bạn BẮT BUỘC phải phân tích và trả lời đầy đủ, chi tiết, dứt khoát dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool (như 'Gọi tool:' hoặc 'search_codebase'), TUYỆT ĐỐI KHÔNG nói 'cần tra cứu thêm mã nguồn'.";
       }
       if (isFinalTurn) {
         turnInstruction += "\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và nghiệp vụ hệ thống để giải thích tường tận và đưa ra đối chiếu rõ ràng bằng tiếng Việt. TUYỆT ĐỐI KHÔNG gọi thêm tool.";
@@ -408,9 +414,12 @@ export class AgentOrchestrator {
 
     // Dọn sạch các dòng hallucinate giả lập tool call (nếu có)
     responseText = responseText
-      .replace(/Gọi tool:\s*[a-zA-Z0-9_]+\s*\(.*?\)/g, "")
-      .replace(/search_codebase\(\{.*?\}\)/g, "")
-      .replace(/read_code_file\(\{.*?\}\)/g, "")
+      .replace(/Gọi tool:[\s\S]*?(?=\n\n|$)/gi, "")
+      .replace(/search_codebase\([\s\S]*?\)/gi, "")
+      .replace(/read_code_file\([\s\S]*?\)/gi, "")
+      .replace(/list_repository_files\([\s\S]*?\)/gi, "")
+      .replace(/```(?:json)?\s*\{\s*"query"[\s\S]*?\}\s*```/gi, "")
+      .replace(/\{"query":\s*"[^"]*",\s*"repo":\s*"[^"]*"\}/gi, "")
       .trim();
 
     // 6. Kiểm tra xem có bảng Markdown cần xuất Excel không

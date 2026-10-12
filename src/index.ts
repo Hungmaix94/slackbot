@@ -105,8 +105,11 @@ app.post("/slack/events", async (c) => {
     const userId = event.user;
     const text = event.text || "";
 
-    // Làm sạch câu query (bỏ mã tag bot <@UXXXXX>)
-    const cleanQuery = text.replace(/<@[A-Z0-9]+>/g, "").trim();
+    // Làm sạch câu query (bỏ mã tag bot <@UXXXXX>, <@UXXXXX|name>, <!here>...)
+    const cleanQuery = text
+      .replace(/<@[A-Z0-9_]+(?:\|[^>]+)?>/gi, "")
+      .replace(/<![a-zA-Z0-9_]+>/g, "")
+      .trim();
 
     // Chạy xử lý ngầm (Async dispatch) qua executionCtx để trả HTTP 200 ngay lập tức cho Slack
     c.executionCtx.waitUntil(
@@ -128,7 +131,10 @@ app.post("/slack/events", async (c) => {
               if (cleanQuery.length < 25 && history.length > 0) {
                 const lastUserMsg = [...history].reverse().find((m: any) => !m.bot_id && m.text);
                 if (lastUserMsg) {
-                  const cleanedPrev = (lastUserMsg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
+                  const cleanedPrev = (lastUserMsg.text || "")
+                    .replace(/<@[A-Z0-9_]+(?:\|[^>]+)?>/gi, "")
+                    .replace(/<![a-zA-Z0-9_]+>/g, "")
+                    .trim();
                   if (cleanedPrev) {
                     effectiveQuery = `${cleanedPrev}\n[Yêu cầu bổ sung: ${cleanQuery || "trả lời"}]`;
                   }
@@ -324,7 +330,7 @@ app.post("/test/query", async (c) => {
   const tools = codeContext ? undefined : (github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
 
   let responseText = "";
-  const maxTurns = codeContext ? 1 : 2;
+  const maxTurns = (tools && github) ? 2 : 1;
   let currentTurn = 0;
   const toolTrace: any[] = [];
   let lastAiResponse: any = null;
@@ -336,7 +342,7 @@ app.post("/test/query", async (c) => {
 
     let turnInstruction = systemInstruction;
     if (!activeTools) {
-      turnInstruction += "\n\nLƯU Ý: Hiện tại không có công cụ gọi hàm đọc code ngoài. Bạn hãy trả lời trực tiếp câu hỏi cho người dùng dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool như 'Gọi tool:' hay 'search_codebase'.";
+      turnInstruction += "\n\nLƯU Ý QUAN TRỌNG: Hiện tại bạn KHÔNG có công cụ đọc mã nguồn. Bạn BẮT BUỘC phải phân tích và trả lời đầy đủ, chi tiết, dứt khoát dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool (như 'Gọi tool:' hoặc 'search_codebase'), TUYỆT ĐỐI KHÔNG nói 'cần tra cứu thêm mã nguồn'.";
     }
     if (isFinalTurn) {
       turnInstruction += "\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và nghiệp vụ hệ thống để giải thích tường tận và đưa ra đối chiếu rõ ràng bằng tiếng Việt. TUYỆT ĐỐI KHÔNG gọi thêm tool.";
@@ -403,9 +409,12 @@ app.post("/test/query", async (c) => {
   }
 
     responseText = (responseText || "")
-      .replace(/Gọi tool:\s*[a-zA-Z0-9_]+\s*\(.*?\)/g, "")
-      .replace(/search_codebase\(\{.*?\}\)/g, "")
-      .replace(/read_code_file\(\{.*?\}\)/g, "")
+      .replace(/Gọi tool:[\s\S]*?(?=\n\n|$)/gi, "")
+      .replace(/search_codebase\([\s\S]*?\)/gi, "")
+      .replace(/read_code_file\([\s\S]*?\)/gi, "")
+      .replace(/list_repository_files\([\s\S]*?\)/gi, "")
+      .replace(/```(?:json)?\s*\{\s*"query"[\s\S]*?\}\s*```/gi, "")
+      .replace(/\{"query":\s*"[^"]*",\s*"repo":\s*"[^"]*"\}/gi, "")
       .trim();
 
     return c.json({
