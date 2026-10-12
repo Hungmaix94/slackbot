@@ -42,34 +42,41 @@
 ```
 slackbot/
 ├── src/
-│   ├── index.ts               # Hono App, routing Webhook Slack, Slash commands, Interactions
+│   ├── index.ts               # Hono App siêu gọn (~25 dòng), mount các route modules
 │   ├── config/
 │   │   └── env.ts             # Định nghĩa Interface Env & Cloudflare Bindings
-│   ├── slack/
-│   │   ├── verify.ts          # Xác thực chữ ký Slack bằng Web Crypto API HMAC-SHA256
-│   │   ├── client.ts          # Slack Web API Client (chat, files.uploadV2, reactions)
-│   │   ├── blocks.ts          # Slack Block Kit UI components
-│   │   └── user-mapping.ts    # Ánh xạ Slack User ID <-> ClickUp Member ID
-│   ├── clickup/
-│   │   ├── client.ts          # Native ClickUp REST API Client (fetch thuần)
-│   │   ├── duplicates.ts      # Kiểm tra và cảnh báo bug trùng lặp
-│   │   └── task-builder.ts    # Định dạng task chuẩn template MVL
-│   ├── rag/
-│   │   ├── chunker.ts         # Phân tách tài liệu Markdown theo đề mục H1/H2/H3
-│   │   ├── search.ts          # Hybrid RAG (Vectorize + D1)
-│   │   └── sync-webhook.ts    # Endpoint nạp và cập nhật tự động tài liệu SRS
-│   ├── ai/
-│   │   ├── gemini.ts          # Gemini 2.5 API Client (hỗ trợ Cloudflare AI Gateway)
-│   │   └── workers-ai.ts      # Workers AI embedding (@cf/baai/bge-m3) & Fallback LLM
-│   ├── excel/
-│   │   └── generator.ts       # Sinh file Excel UAT & Use Case in-memory bằng ExcelJS
+│   ├── core/                  # [MỚI] Tầng lõi thực thi Agent & AI Client Factory
+│   │   ├── types.ts           # Types cho ToolCall, AgentRunnerOptions, AgentRunnerResult
+│   │   ├── ai-client-factory.ts # Factory cấp phát Gemini / Workers-AI client
+│   │   └── agent-runner.ts    # Vòng lặp ReAct / Multi-turn chuẩn hóa & khử hallucination
+│   ├── tools/                 # [MỚI] Khai báo & Thực thi công cụ cho Agent
+│   │   ├── index.ts           # Tool Registry
+│   │   └── code-tools.ts      # search_codebase, read_code_file, list_repository_files
+│   ├── workflows/             # [MỚI] Các luồng nghiệp vụ độc lập (Single Responsibility)
+│   │   ├── index.ts           # Workflow index
+│   │   ├── srs-qa.workflow.ts # Luồng hỏi đáp SRS RAG, Code Drift & xuất Excel
+│   │   ├── task-creator.workflow.ts # Luồng tạo bug/task Plane từ Slack thread
+│   │   ├── plane-search.workflow.ts # Luồng tra cứu Issue trên Plane
+│   │   └── project-config.workflow.ts # Luồng quản lý project mặc định cho kênh
 │   ├── agents/
 │   │   ├── router.ts          # Bộ phân loại ý định người dùng (Intent Classifier)
-│   │   ├── prompts.ts         # System prompts chuẩn hóa (BA, QA, Q&A)
-│   │   └── orchestrator.ts    # Bộ điều phối trung tâm toàn bộ vòng đời Agent
-│   └── utils/
-│       ├── markdown.ts        # Chuyển đổi Markdown sang Slack mrkdwn & trích xuất bảng
-│       └── slugify.ts         # Tiện ích chuyển đổi tiếng Việt không dấu
+│   │   ├── prompts.ts         # System prompts chuẩn hóa (BA, QA, DEV, Q&A)
+│   │   ├── code-context.ts    # Trích xuất ngữ cảnh code thông minh
+│   │   └── orchestrator.ts    # Facade điều phối mỏng (~100 dòng), ủy quyền cho workflows
+│   ├── routes/                # [MỚI] Hono Route Handlers tách rời
+│   │   ├── index.ts           # Routes index
+│   │   ├── slack.routes.ts    # /slack/events, /slack/commands, /slack/interactions
+│   │   ├── sync.routes.ts     # /sync/github
+│   │   ├── plane.routes.ts    # /plane/users
+│   │   └── test.routes.ts     # /test/query (tái sử dụng SrsQaWorkflow / AgentRunner)
+│   ├── slack/                 # Slack Web API Client, Block Kit UI, User mapping
+│   ├── plane/                 # Native Plane REST API Client, Duplicates, Task Builder, Projects
+│   ├── clickup/               # Native ClickUp REST API Client, Duplicates, Task Builder
+│   ├── github/                # GitHub API Client (Codebase reader via PAT)
+│   ├── rag/                   # Hybrid RAG (Vectorize + D1 Full-text FTS5, Chunker)
+│   ├── ai/                    # Gemini Client, Workers-AI Client, Task Extractor
+│   ├── excel/                 # Sinh file Excel UAT & Use Case in-memory bằng ExcelJS
+│   └── utils/                 # Chuyển đổi Markdown sang Slack mrkdwn & Slugify
 ├── scripts/
 │   └── sync-local-srs.ts      # Script đồng bộ tài liệu SRS từ local lên Cloudflare
 ├── schema.sql                 # D1 Database Schema
