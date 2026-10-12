@@ -235,7 +235,7 @@ export class AgentOrchestrator {
       }
     );
 
-    const srsResults = await this.srsSearch.search(query, 4);
+    const srsResults = await this.srsSearch.search(query, 5);
     let srsContext = "";
     if (srsResults.length > 0) {
       srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU TỪ HỆ THỐNG ===\n";
@@ -283,11 +283,18 @@ export class AgentOrchestrator {
     // 4. Xây dựng nội dung gửi tới AI
     const contents: GeminiContent[] = [];
 
-    // Nạp lịch sử hội thoại gần nhất nếu có
+    // Nạp lịch sử hội thoại gần nhất nếu có (lọc sạch tool call giả lập trong lịch sử)
     if (history && history.length > 0) {
       for (const msg of history.slice(-6)) {
         const role = msg.bot_id ? "model" : "user";
-        const text = (msg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
+        let text = (msg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
+        if (role === "model") {
+          text = text
+            .replace(/Gọi tool:\s*[a-zA-Z0-9_]+\s*\(.*?\)/g, "")
+            .replace(/search_codebase\(\{.*?\}\)/g, "")
+            .replace(/read_code_file\(\{.*?\}\)/g, "")
+            .trim();
+        }
         if (text) {
           contents.push({ role, parts: [{ text }] });
         }
@@ -316,11 +323,17 @@ export class AgentOrchestrator {
       const isFinalTurn = currentTurn === maxTurns;
       const activeTools = isFinalTurn ? undefined : tools;
 
+      let turnInstruction = systemInstruction;
+      if (!activeTools) {
+        turnInstruction += "\n\nLƯU Ý: Hiện tại không có công cụ gọi hàm đọc code ngoài. Bạn hãy trả lời trực tiếp câu hỏi cho người dùng dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool như 'Gọi tool:' hay 'search_codebase'.";
+      }
+      if (isFinalTurn) {
+        turnInstruction += "\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và nghiệp vụ hệ thống để giải thích tường tận và đưa ra đối chiếu rõ ràng bằng tiếng Việt. TUYỆT ĐỐI KHÔNG gọi thêm tool.";
+      }
+
       const aiResponse = await aiClient.generateContent({
         contents,
-        systemInstruction: isFinalTurn
-          ? `${systemInstruction}\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và các đoạn mã nguồn đã được cung cấp để giải thích tường tận nguyên nhân gốc rễ, trích dẫn file code và đưa ra giải pháp rõ ràng bằng tiếng Việt theo đúng cấu trúc 3 phần. TUYỆT ĐỐI KHÔNG gọi thêm tool.`
-          : systemInstruction,
+        systemInstruction: turnInstruction,
         tools: activeTools,
         temperature: 0.2,
       });
@@ -392,6 +405,13 @@ export class AgentOrchestrator {
         break;
       }
     }
+
+    // Dọn sạch các dòng hallucinate giả lập tool call (nếu có)
+    responseText = responseText
+      .replace(/Gọi tool:\s*[a-zA-Z0-9_]+\s*\(.*?\)/g, "")
+      .replace(/search_codebase\(\{.*?\}\)/g, "")
+      .replace(/read_code_file\(\{.*?\}\)/g, "")
+      .trim();
 
     // 6. Kiểm tra xem có bảng Markdown cần xuất Excel không
     const tables = parseAllMarkdownTables(responseText);

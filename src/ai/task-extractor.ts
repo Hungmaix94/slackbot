@@ -246,6 +246,7 @@ ${threadText || query}`;
       systemInstruction:
         "Bạn là API phân tích dữ liệu. Chỉ trả về chuỗi JSON thuần túy, không có text hay markdown ngoài JSON.",
       temperature: 0.1,
+      responseMimeType: "application/json",
     });
 
     const parsedJson = extractJsonFromText(parsedRes?.text || "");

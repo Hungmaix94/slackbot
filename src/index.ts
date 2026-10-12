@@ -26,6 +26,7 @@ app.get("/health", (c) => {
   return c.json({ status: "ok", service: "mvl-slack-assistant", timestamp: new Date().toISOString() });
 });
 
+
 // Sync / Inspect Plane users
 app.get("/plane/users", async (c) => {
   if (!c.env.PLANE_API_KEY) {
@@ -285,7 +286,7 @@ app.post("/test/query", async (c) => {
     if (!query) return c.json({ error: "Missing query" }, 400);
 
   const srsSearch = new SrsSearchService(c.env);
-  const srsResults = await srsSearch.search(query, 4);
+  const srsResults = await srsSearch.search(query, 5);
 
   let srsContext = "";
   if (srsResults.length > 0) {
@@ -326,20 +327,28 @@ app.post("/test/query", async (c) => {
   const maxTurns = codeContext ? 1 : 2;
   let currentTurn = 0;
   const toolTrace: any[] = [];
+  let lastAiResponse: any = null;
 
   while (currentTurn < maxTurns) {
     currentTurn++;
     const isFinalTurn = currentTurn === maxTurns;
     const activeTools = isFinalTurn ? undefined : tools;
 
+    let turnInstruction = systemInstruction;
+    if (!activeTools) {
+      turnInstruction += "\n\nLƯU Ý: Hiện tại không có công cụ gọi hàm đọc code ngoài. Bạn hãy trả lời trực tiếp câu hỏi cho người dùng dựa trên tài liệu SRS và nghiệp vụ hệ thống. TUYỆT ĐỐI KHÔNG sinh văn bản giả lập gọi tool như 'Gọi tool:' hay 'search_codebase'.";
+    }
+    if (isFinalTurn) {
+      turnInstruction += "\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và nghiệp vụ hệ thống để giải thích tường tận và đưa ra đối chiếu rõ ràng bằng tiếng Việt. TUYỆT ĐỐI KHÔNG gọi thêm tool.";
+    }
+
     const aiResponse = await aiClient.generateContent({
       contents,
-      systemInstruction: isFinalTurn
-        ? `${systemInstruction}\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và các đoạn mã nguồn đã được cung cấp để giải thích tường tận nguyên nhân gốc rễ, trích dẫn file code và đưa ra giải pháp rõ ràng bằng tiếng Việt theo đúng cấu trúc 3 phần. TUYỆT ĐỐI KHÔNG gọi thêm tool.`
-        : systemInstruction,
+      systemInstruction: turnInstruction,
       tools: activeTools,
       temperature: 0.2,
     });
+    lastAiResponse = aiResponse;
 
     if (!isFinalTurn && aiResponse.functionCalls && aiResponse.functionCalls.length > 0 && github) {
       for (const call of aiResponse.functionCalls) {
@@ -393,14 +402,21 @@ app.post("/test/query", async (c) => {
     }
   }
 
+    responseText = (responseText || "")
+      .replace(/Gọi tool:\s*[a-zA-Z0-9_]+\s*\(.*?\)/g, "")
+      .replace(/search_codebase\(\{.*?\}\)/g, "")
+      .replace(/read_code_file\(\{.*?\}\)/g, "")
+      .trim();
+
     return c.json({
       query,
       intent,
       provider: useWorkersAi ? "cloudflare-workers-ai" : "gemini",
-      model: useWorkersAi ? (c.env.WORKERS_AI_MODEL || "@cf/meta/llama-3.3-70b-instruct") : (c.env.DEFAULT_MODEL || "gemini-2.5-flash"),
+      model: useWorkersAi ? (c.env.WORKERS_AI_MODEL || "@cf/meta/llama-3.3-70b-instruct") : (c.env.DEFAULT_MODEL || "gemini-3.6-flash"),
       srsCount: srsResults.length,
       toolTrace,
       response: responseText,
+      debug: { currentTurn, maxTurns, toolsLength: tools?.length, rawAiResponse: lastAiResponse },
     });
   } catch (err: any) {
     return c.json({ error: err.message || String(err), stack: err.stack }, 500);

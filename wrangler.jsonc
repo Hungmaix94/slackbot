@@ -5,8 +5,13 @@
   "compatibility_date": "2025-02-24",
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
+  "placement": {
+    "mode": "smart",
+    "hint": "enam"
+  },
   "vars": {
-    "AI_PROVIDER": "cloudflare",
+    "AI_PROVIDER": "gemini",
+    "DEFAULT_MODEL": "gemini-3.6-flash",
     "WORKERS_AI_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
     "PLANE_API_HOST_URL": "https://pm.glinteco.com",
     "PLANE_WORKSPACE_SLUG": "glinteco",

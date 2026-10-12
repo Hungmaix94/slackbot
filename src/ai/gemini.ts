@@ -39,17 +39,18 @@ export class GeminiClient {
 
   constructor(env: Env, model?: string) {
     this.apiKey = env.GEMINI_API_KEY || "";
-    this.model = model || env.DEFAULT_MODEL || "gemini-2.5-flash";
+    this.model = model || env.DEFAULT_MODEL || "gemini-3.6-flash";
     this.gatewayUrl = env.CF_AI_GATEWAY_URL;
   }
 
-  private getEndpoint(): string {
+  private getEndpoint(modelName?: string): string {
+    const selected = modelName || this.model;
     if (this.gatewayUrl) {
       // Dùng Cloudflare AI Gateway
       const cleanGateway = this.gatewayUrl.replace(/\/+$/, "");
-      return `${cleanGateway}/google-ai-studio/v1beta/models/${this.model}:generateContent`;
+      return `${cleanGateway}/google-ai-studio/v1beta/models/${selected}:generateContent`;
     }
-    return `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent?key=${this.apiKey}`;
+    return `https://generativelanguage.googleapis.com/v1beta/models/${selected}:generateContent?key=${this.apiKey}`;
   }
 
   async generateContent(params: {
@@ -57,11 +58,11 @@ export class GeminiClient {
     systemInstruction?: string;
     tools?: { functionDeclarations: GeminiFunctionDeclaration[] }[];
     temperature?: number;
+    responseMimeType?: string;
   }): Promise<{
     text: string;
     functionCalls?: { name: string; args: Record<string, any> }[];
   }> {
-    const endpoint = this.getEndpoint();
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
@@ -77,6 +78,10 @@ export class GeminiClient {
       },
     };
 
+    if (params.responseMimeType) {
+      body.generationConfig.responseMimeType = params.responseMimeType;
+    }
+
     if (params.systemInstruction) {
       body.systemInstruction = {
         parts: [{ text: params.systemInstruction }],
@@ -87,36 +92,57 @@ export class GeminiClient {
       body.tools = params.tools;
     }
 
-    const res = await fetch(endpoint, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    const modelsToTry = Array.from(new Set([this.model, "gemini-3.6-flash", "gemini-3.5-flash-lite", "gemini-2.5-flash-lite"]));
+    let lastError: any = null;
 
-    if (!res.ok) {
-      const errText = await res.text();
-      throw new Error(`Gemini API error (${res.status}): ${errText}`);
-    }
+    for (const modelToUse of modelsToTry) {
+      try {
+        const endpoint = this.getEndpoint(modelToUse);
+        const res = await fetch(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
 
-    const data: any = await res.json();
-    const candidate = data.candidates?.[0];
-    if (!candidate) {
-      throw new Error("Gemini returned empty candidate response.");
-    }
+        if (!res.ok) {
+          const errText = await res.text();
+          if (res.status === 503 || res.status === 404) {
+            console.warn(`Model ${modelToUse} returned ${res.status}, trying next fallback model...`);
+            lastError = new Error(`Gemini API error (${res.status}): ${errText}`);
+            continue;
+          }
+          throw new Error(`Gemini API error (${res.status}): ${errText}`);
+        }
 
-    const parts = candidate.content?.parts || [];
-    let text = "";
-    const functionCalls: { name: string; args: Record<string, any> }[] = [];
+        const data: any = await res.json();
+        const candidate = data.candidates?.[0];
+        if (!candidate) {
+          throw new Error("Gemini returned empty candidate response.");
+        }
 
-    for (const part of parts) {
-      if (part.text) {
-        text += part.text;
+        const parts = candidate.content?.parts || [];
+        let text = "";
+        const functionCalls: { name: string; args: Record<string, any> }[] = [];
+
+        for (const part of parts) {
+          if (part.text) {
+            text += part.text;
+          }
+          if (part.functionCall) {
+            functionCalls.push(part.functionCall);
+          }
+        }
+
+        return { text, functionCalls };
+      } catch (err: any) {
+        lastError = err;
+        if (modelsToTry.indexOf(modelToUse) < modelsToTry.length - 1) {
+          continue;
+        }
+        throw err;
       }
-      if (part.functionCall) {
-        functionCalls.push(part.functionCall);
-      }
     }
 
-    return { text, functionCalls };
+    throw lastError || new Error("All Gemini models failed.");
   }
 }
