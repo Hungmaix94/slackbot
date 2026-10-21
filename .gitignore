@@ -4,8 +4,11 @@ venv/
 .dev.vars.*
 __pycache__/
 *.log
+*.db
+*.sqlite3
 node_modules/
 .wrangler/
+
 dist/
 .DS_Store
 scripts/test-*.ts
