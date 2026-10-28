@@ -4,6 +4,8 @@ import os
 import re
 import shutil
 import sqlite3
+import threading
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("rag_engine")
@@ -100,8 +102,23 @@ class SRSRagEngine:
                     break
 
         self.db_path = db_path or os.path.join(base_dir, "srs_fts.db")
+        self._conn: Optional[sqlite3.Connection] = None
+        self._lock = threading.Lock()
+        self._search_cache: "OrderedDict[Tuple[str, int, bool], List[Dict[str, Any]]]" = OrderedDict()
+        self._max_cache_size = 512
+        self._cached_stats: Optional[Dict[str, Any]] = None
         self._ensure_db_decompressed()
         logger.info(f"Using SRS FTS DB at: {self.db_path}")
+
+    def _get_connection(self) -> sqlite3.Connection:
+        if self._conn is None:
+            conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            conn.execute("PRAGMA mmap_size = 268435456;")
+            conn.execute("PRAGMA cache_size = -64000;")
+            conn.execute("PRAGMA temp_store = MEMORY;")
+            conn.execute("PRAGMA query_only = ON;")
+            self._conn = conn
+        return self._conn
 
     def _ensure_db_decompressed(self) -> None:
         """Tự động giải nén srs_fts.db.gz nếu srs_fts.db chưa tồn tại hoặc là bản cũ (< 80MB)."""
@@ -127,20 +144,22 @@ class SRSRagEngine:
         return os.path.exists(self.db_path)
 
     def get_stats(self) -> Dict[str, Any]:
+        if self._cached_stats is not None:
+            return self._cached_stats
         if not self.is_ready():
             return {"ready": False, "chunks": 0, "size_mb": 0}
         try:
-            conn = sqlite3.connect(self.db_path)
-            cur = conn.cursor()
-            cur.execute("SELECT count(*) FROM srs_chunks")
-            count = cur.fetchone()[0]
-            cur.execute("SELECT count(*) FROM srs_chunks WHERE doc_id LIKE 'code:%'")
-            code_count = cur.fetchone()[0]
-            cur.execute("SELECT count(*) FROM srs_chunks WHERE doc_id LIKE 'backend-docs/%'")
-            be_docs_count = cur.fetchone()[0]
-            conn.close()
+            with self._lock:
+                conn = self._get_connection()
+                cur = conn.cursor()
+                cur.execute("SELECT count(*) FROM srs_chunks")
+                count = cur.fetchone()[0]
+                cur.execute("SELECT count(*) FROM srs_chunks WHERE doc_id LIKE 'code:%'")
+                code_count = cur.fetchone()[0]
+                cur.execute("SELECT count(*) FROM srs_chunks WHERE doc_id LIKE 'backend-docs/%'")
+                be_docs_count = cur.fetchone()[0]
             size_mb = os.path.getsize(self.db_path) / (1024 * 1024)
-            return {
+            self._cached_stats = {
                 "ready": True,
                 "chunks": count,
                 "srs_chunks": count - code_count - be_docs_count,
@@ -148,6 +167,7 @@ class SRSRagEngine:
                 "code_chunks": code_count,
                 "size_mb": round(size_mb, 2),
             }
+            return self._cached_stats
         except Exception as e:
             logger.error(f"Error reading stats: {e}")
             return {"ready": False, "error": str(e)}
@@ -213,12 +233,16 @@ class SRSRagEngine:
             logger.warning("SRS FTS DB does not exist, cannot perform search.")
             return []
 
+        cache_key = (query.strip().lower(), top_k, include_code)
+        with self._lock:
+            if cache_key in self._search_cache:
+                self._search_cache.move_to_end(cache_key)
+                return list(self._search_cache[cache_key])
+
         exact_ids, matched_phrases, keywords = self._extract_search_signals(query)
         if not exact_ids and not matched_phrases and not keywords:
             return []
 
-        conn = sqlite3.connect(self.db_path)
-        cur = conn.cursor()
         candidates_map: Dict[Tuple[str, str], Dict[str, Any]] = {}
 
         def add_rows(rows: List[Tuple[Any, ...]], boost: float = 0.0):
@@ -237,7 +261,9 @@ class SRSRagEngine:
                 else:
                     candidates_map[key]["fts_score"] = max(candidates_map[key]["fts_score"], -fts_rank + boost)
 
-        try:
+        with self._lock:
+            conn = self._get_connection()
+            cur = conn.cursor()
             # Pass 1: Exact ID / Ticket / Feature lookup (highest precision)
             for eid in exact_ids[:5]:
                 safe_id = eid.replace('"', "")
@@ -280,7 +306,6 @@ class SRSRagEngine:
                 safe_kws = [re.sub(r"[^\w]", "", k, flags=re.UNICODE) for k in keywords[:10] if k]
                 safe_kws = [k for k in safe_kws if len(k) > 1]
                 if len(safe_kws) >= 2:
-                    # Try high-precision pair combinations first
                     pair_clauses = []
                     for i in range(min(len(safe_kws) - 1, 5)):
                         pair_clauses.append(f'("{safe_kws[i]}" AND "{safe_kws[i+1]}")')
@@ -316,9 +341,6 @@ class SRSRagEngine:
                         add_rows(cur.fetchall(), boost=0.0)
                     except Exception:
                         pass
-
-        finally:
-            conn.close()
 
         # Pass 4: Cross-Reranking in Python for maximum relevance & zero noise
         q_lower = query.lower()
@@ -407,7 +429,12 @@ class SRSRagEngine:
 
         # Sort final selection by score descending
         final_results.sort(key=lambda x: x["rank"], reverse=True)
-        return final_results[:top_k]
+        out = final_results[:top_k]
+        with self._lock:
+            self._search_cache[cache_key] = out
+            if len(self._search_cache) > self._max_cache_size:
+                self._search_cache.popitem(last=False)
+        return out
 
     def format_context(self, chunks: List[Dict[str, Any]], allow_tech: bool = False) -> str:
         if not chunks:

@@ -1,6 +1,8 @@
 import os
 import re
 import json
+import time
+import asyncio
 import logging
 import subprocess
 import urllib.request
@@ -76,6 +78,9 @@ class PlaneClient:
         self.default_project_id = default_project_id or os.environ.get(
             "PLANE_DEFAULT_PROJECT_ID", "e92f7ba8-0db9-487f-a21c-13712d226eb8"
         )
+        self._issue_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
+        self._comments_cache: Dict[str, Tuple[float, List[str]]] = {}
+        self._cache_ttl_sec: float = 300.0
 
     @property
     def headers(self) -> Dict[str, str]:
@@ -125,6 +130,10 @@ class PlaneClient:
 
     async def get_issue_by_readable_id(self, readable_id: str) -> Optional[Dict[str, Any]]:
         clean_key = readable_id.strip().upper()
+        now = time.monotonic()
+        cached = self._issue_cache.get(clean_key)
+        if cached and (now - cached[0]) < self._cache_ttl_sec:
+            return cached[1]
         if not self.api_key:
             return KNOWN_PLANE_ISSUES_FALLBACK.get(clean_key)
         url = f"{self.host_url}/api/v1/workspaces/{self.workspace_slug}/issues/{clean_key}/"
@@ -135,14 +144,19 @@ class PlaneClient:
                     if res.is_success:
                         data = res.json()
                         data["identifier"] = clean_key
+                        self._issue_cache[clean_key] = (now, data)
                         return data
             data = self._get_json_sync(url, timeout=8.0)
             if isinstance(data, dict) and (data.get("id") or data.get("name")):
                 data["identifier"] = clean_key
+                self._issue_cache[clean_key] = (now, data)
                 return data
         except Exception as e:
             logger.warning(f"Plane get_issue_by_readable_id({clean_key}) error: {e}")
-        return KNOWN_PLANE_ISSUES_FALLBACK.get(clean_key)
+        fallback = KNOWN_PLANE_ISSUES_FALLBACK.get(clean_key)
+        if fallback:
+            self._issue_cache[clean_key] = (now, fallback)
+        return fallback
 
     async def get_issue_by_uuid(self, project_id: str, issue_id: str) -> Optional[Dict[str, Any]]:
         if not self.api_key:
@@ -218,9 +232,12 @@ class PlaneClient:
         resolved_blocks: List[str] = []
         enriched_terms: List[str] = []
 
-        for key in readable_keys[:3]:
-            issue = await self.get_issue_by_readable_id(key)
-            if not issue:
+        fetched_issues = await asyncio.gather(
+            *(self.get_issue_by_readable_id(k) for k in readable_keys[:3]),
+            return_exceptions=True,
+        )
+        for key, issue in zip(readable_keys[:3], fetched_issues):
+            if not isinstance(issue, dict) or not issue:
                 continue
             title = (issue.get("name") or "").strip()
             desc = _strip_html(issue.get("description_html") or issue.get("description") or "")
