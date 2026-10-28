@@ -33,12 +33,17 @@ QUY TẮC BẮT BUỘC TUYỆT ĐỐI (VI PHẠM SẼ BỊ LOẠI BỎ):
    - Diễn đạt hoàn toàn bằng ngôn ngữ nghiệp vụ dễ hiểu cho Kế toán, Sale, BA, Quản lý.
    - TUYỆT ĐỐI KHÔNG nhắc tên file code (`.py`, `.ts`, `.tsx`, `apps/...`), tên hàm/biến/class (`_resolve_managers_for_department`, `create_from_pdcdt`, `_attach_summary_line`, `SalesInvoice`, `MonthlySummaryStatus`...), mã lỗi kỹ thuật (`InvalidStateTransitionError`, `ValidationError`), database, API hay từ "code", "mã nguồn", "tool".
    - Dịch trạng thái sang tiếng Việt: Nháp (thay vì DRAFT), Đã xác nhận (thay vì CONFIRMED), Đã duyệt (thay vì APPROVED), Đã chi tiền (thay vì PAID), Mở lại (thay vì reopen).
-4. CẤU TRÚC NGẮN GỌN, SÚC TÍCH (4 - 7 DÒNG):
+4. TRẢ LỜI THEO GẠCH ĐẦU DÒNG NGẮN GỌN, ĐÚNG Ý (TỐI ĐA 4 - 6 GẠCH ĐẦU DÒNG):
+   - TUYỆT ĐỐI KHÔNG viết đoạn văn dài nhiều câu trong 1 gạch đầu dòng.
+   - Mỗi gạch đầu dòng (`•`) CHỈ chứa 1 ý ngắn gọn (tối đa 1 câu <= 25 từ), tách bạch rõ từng ý.
 
-💡 *[Kết luận trực diện trả lời thẳng vào câu hỏi / bản chất logic của task trong 1-2 câu]*
-• *[Quy tắc / Nguyên nhân 1]:* [Giải thích rõ ràng, đúng số liệu và quy tắc thực tế]
-• *[Quy tắc / Nguyên nhân 2]:* [Giải thích ngắn gọn, đúng trọng tâm]
-👉 *Cách xử lý:* [Các bước kiểm tra hoặc thao tác cụ thể trên hệ thống trong 1-2 dòng]
+💡 *[Kết luận trực diện trong 1 câu ngắn gọn]*
+• *[Ý chính / Quy tắc 1]:* [1 câu ngắn gọn, đúng số liệu/quy tắc]
+• *[Nguyên nhân / Quy tắc 2]:* [1 câu ngắn gọn, đúng trọng tâm]
+• *[Nguyên nhân / Quy tắc 3 (nếu có)]:* [1 câu ngắn gọn]
+👉 *Cách xử lý:*
+• [Bước 1 ngắn gọn]
+• [Bước 2 ngắn gọn]
 """
 
 SYSTEM_INSTRUCTION_DEV = """
@@ -854,6 +859,20 @@ def sanitize_agent_response(raw_text: str, allow_tech: bool = False) -> str:
         for pattern, repl in replacements:
             cleaned = re.sub(pattern, repl, cleaned, flags=re.IGNORECASE)
 
+    # 4. Tự động tách các gạch đầu dòng quá dài (> 220 ký tự, ghép nhiều câu) thành các gạch đầu dòng ngắn gọn
+    normalized_lines = []
+    for line in cleaned.splitlines():
+        s_line = line.strip()
+        if s_line.startswith(("•", "-", "* ")) and len(s_line) > 220 and "|" not in s_line:
+            body = re.sub(r"^(?:•|\-|\*)\s*", "", s_line)
+            sub_clauses = [c.strip().rstrip(".") for c in re.split(r"(?:\.\s+|\;\s+)", body) if c.strip()]
+            if len(sub_clauses) > 1:
+                for sc in sub_clauses:
+                    normalized_lines.append(f"• {sc}.")
+                continue
+        normalized_lines.append(line)
+    cleaned = "\n".join(normalized_lines)
+
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return cleaned
 
@@ -999,10 +1018,17 @@ class GeminiAgent:
         scored_domains.sort(key=lambda x: x[0], reverse=True)
         if scored_domains:
             dom = scored_domains[0][1]
-            steps_txt = "\n".join([f"{i+1}. {s}" for i, s in enumerate(dom["steps"])])
+            steps_txt = "\n".join([f"• {s}" for s in dom["steps"]])
+            raw_clauses = [
+                c.strip().rstrip(".")
+                for c in re.split(r"(?:\.\s+|\;\s+)", dom["business_logic"])
+                if c.strip()
+            ]
+            bullet_clauses = "\n".join([f"• {c}." for c in raw_clauses])
             if tech_mode:
                 return (
-                    f"💡 *Tóm tắt:* {dom['business_logic']}\n"
+                    f"💡 *Tóm tắt:* {raw_clauses[0]}.\n"
+                    f"{bullet_clauses}\n"
                     f"💻 *Logic Code:*\n"
                     f"• *Vị trí:* `{dom['code_ref']}`\n"
                     f"• *Điều kiện xử lý:* `{dom['code_snippet'].splitlines()[0]}`\n"
@@ -1010,7 +1036,7 @@ class GeminiAgent:
                 )
             return sanitize_agent_response(
                 f"💡 *{dom['module_name']}:*\n"
-                f"• *Quy tắc & Nguyên nhân thực tế:* {dom['business_logic']}\n"
+                f"{bullet_clauses}\n"
                 f"👉 *Cách xử lý:*\n{steps_txt}",
                 allow_tech=False,
             )
