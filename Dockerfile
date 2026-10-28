@@ -15,6 +15,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
+RUN python3 -c "import gzip, shutil, os; shutil.copyfileobj(gzip.open('srs_fts.db.gz', 'rb'), open('srs_fts.db', 'wb')) if os.path.exists('srs_fts.db.gz') and not os.path.exists('srs_fts.db') else None"
 
 EXPOSE 8080
 

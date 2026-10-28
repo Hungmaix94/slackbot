@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from fastapi import FastAPI, Request, Response, HTTPException
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 import httpx
 
 from slack_bolt.async_app import AsyncApp
@@ -28,6 +28,7 @@ from gemini_agent import (
 from plane_client import PlaneClient
 from excel_generator import parse_all_markdown_tables, create_excel_from_tables
 from user_mapping import extract_and_resolve_assignees
+from testcase_collector import TestcaseCollector
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,6 +39,7 @@ logger = logging.getLogger("mvl-slack-agent")
 rag_engine = SRSRagEngine()
 gemini_agent = GeminiAgent()
 plane_client = PlaneClient()
+testcase_collector = TestcaseCollector()
 
 slack_bot_token = os.environ.get("SLACK_BOT_TOKEN", "")
 slack_app_token = os.environ.get("SLACK_APP_TOKEN", "")
@@ -136,11 +138,12 @@ async def process_query_and_reply(
     say,
     instruction_type: str = "default",
     history: Optional[List[Dict[str, Any]]] = None,
+    user_id: Optional[str] = None,
 ):
     try:
         intent = classify_intent(query)
         tech_mode = is_tech_requested(query)
-        logger.info(f"Processing query: '{query[:60]}' (intent={intent}, tech={tech_mode})")
+        logger.info(f"Processing query: '{query[:60]}' (intent={intent}, tech={tech_mode}, user={user_id})")
 
         if intent == "AUDIT_SRS_CODE":
             report = run_srs_code_audit(query)
@@ -176,6 +179,19 @@ async def process_query_and_reply(
             enriched_query=enriched_plane_terms,
         )
         answer = sanitize_agent_response(answer, allow_tech=tech_mode)
+
+        try:
+            citations = [c.get("citation", "") for c in chunks] if chunks else []
+            testcase_collector.save_testcase(
+                question=query,
+                answer=answer,
+                user_id=user_id,
+                channel_id=channel_id,
+                thread_ts=thread_ts,
+                citations=citations,
+            )
+        except Exception as tce:
+            logger.warning(f"Error auto-collecting testcase: {tce}")
 
         tables = parse_all_markdown_tables(answer)
         excel_path = None
@@ -836,18 +852,39 @@ async def root_dashboard():
 
 
 @app.get("/api/testcases")
-async def get_testcases_api():
+async def get_testcases_api(limit: int = 100, module: Optional[str] = None):
     tc_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tests", "testcases_300_io.json")
-    if not os.path.exists(tc_path):
-        return {"total": 0, "items": []}
-    with open(tc_path, "r", encoding="utf-8") as f:
-        items = json.load(f)
-    return {"total": len(items), "items": items}
+    items = []
+    if os.path.exists(tc_path):
+        with open(tc_path, "r", encoding="utf-8") as f:
+            items = json.load(f)
+    return {
+        "total": len(items),
+        "items": items,
+        "stats": testcase_collector.get_stats(),
+        "testcases": testcase_collector.get_testcases(limit, module),
+    }
+
+
+@app.get("/api/testcases/stats")
+async def get_testcases_stats():
+    return testcase_collector.get_stats()
+
+
+@app.get("/api/testcases/export")
+async def export_testcases():
+    excel_path = testcase_collector.export_to_excel()
+    return FileResponse(
+        path=excel_path,
+        filename="User_Questions_Testcases.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @app.get("/health")
 async def health():
     stats = rag_engine.get_stats()
+    tc_stats = testcase_collector.get_stats()
     return {
         "status": "ok",
         "service": "mvl-slack-agent",
@@ -855,6 +892,7 @@ async def health():
         "gemini_primary_model": gemini_agent.primary_model,
         "rag_stats": stats,
         "plane_workspace": plane_client.workspace_slug,
+        "testcase_stats": tc_stats,
     }
 
 
