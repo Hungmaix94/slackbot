@@ -1,0 +1,14 @@
+node_modules
+.wrangler
+venv
+.venv
+__pycache__
+*.pyc
+.git
+.github
+.env
+.env.local
+test-videos
+*.log
+srs_fts.db
+skills
