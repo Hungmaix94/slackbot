@@ -48,16 +48,28 @@ CORE_SLACK_TO_PLANE: Dict[str, str] = {
     "vi.nguyentuong@glinteco.com": "bd144161-9cf9-46b6-9b7e-d0beb6e240a1",
 
     # NhungNT (Nguyễn Nhung)
+    "nhungnt": "4a02d7de-cc11-4d8f-807a-8c202f98aaee",
     "nhung.nguyenthi": "4a02d7de-cc11-4d8f-807a-8c202f98aaee",
     "nhung.nguyenthi@glinteco.com": "4a02d7de-cc11-4d8f-807a-8c202f98aaee",
 
     # VuNguyen
+    "vunguyen": "6968627a-e5fe-4bcf-8cf8-cb5facdabd9a",
+    "vu nguyen": "6968627a-e5fe-4bcf-8cf8-cb5facdabd9a",
     "vu.nguyen": "6968627a-e5fe-4bcf-8cf8-cb5facdabd9a",
     "vu.nguyen@glinteco.com": "6968627a-e5fe-4bcf-8cf8-cb5facdabd9a",
 
     # DuongVD (Vũ Đại Dương)
+    "duongvd": "660f015e-e1e8-4ce3-9905-c7ced49325b9",
     "duong.vudai": "660f015e-e1e8-4ce3-9905-c7ced49325b9",
     "duong.vudai@glinteco.com": "660f015e-e1e8-4ce3-9905-c7ced49325b9",
+
+    # KhoaNC, HienTD, HoaVQ, ManhNV, TrangPT, ToanTD
+    "khoanc": "d71fdb22-f20d-4465-a90c-90ee4cc26572",
+    "hientd": "2323275e-6b9a-4147-8aa7-b0afe9c40121",
+    "hoavq": "6292d351-72fb-4cc4-9f00-55fc818e981b",
+    "manhnv": "a8a221a1-ad81-4a34-92bc-34808a0502f0",
+    "trangpt": "742e08d1-5997-4069-8bbc-42f32d0b014e",
+    "toantd": "dd54a437-8b30-41d6-9870-28591d557d24",
 }
 
 

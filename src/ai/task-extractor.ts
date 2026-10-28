@@ -1,10 +1,12 @@
 export interface ExtractedTaskInfo {
+  taskType: "bug" | "task";
   taskName: string;
   moduleName: string;
   stepsToReproduce: string[];
   actualBehavior: string;
   expectedBehavior: string;
   severity: "urgent" | "high" | "medium" | "low" | "none";
+  explicitAssignee?: string;
 }
 
 /**
@@ -13,7 +15,6 @@ export interface ExtractedTaskInfo {
 export function extractJsonFromText(text: string): any {
   if (!text || typeof text !== "string") return null;
 
-  // 1. Thử trích xuất từ code block ```json ... ``` hoặc ``` ... ```
   const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
   if (codeBlockMatch && codeBlockMatch[1]) {
     try {
@@ -21,7 +22,6 @@ export function extractJsonFromText(text: string): any {
     } catch {}
   }
 
-  // 2. Tìm khối ngoặc nhọn ngoài cùng { ... }
   const firstBrace = text.indexOf("{");
   const lastBrace = text.lastIndexOf("}");
   if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -31,15 +31,14 @@ export function extractJsonFromText(text: string): any {
     } catch {
       try {
         const sanitized = candidate
-          .replace(/,\s*([\}\]])/g, "$1") // Loại bỏ trailing commas
-          .replace(/[\u201C\u201D]/g, '"') // Chuyển smart quotes sang double quotes
-          .replace(/[\r\n\t]+/g, " "); // Chuẩn hóa ký tự xuống dòng
+          .replace(/,\s*([\}\]])/g, "$1")
+          .replace(/[\u201C\u201D]/g, '"')
+          .replace(/[\r\n\t]+/g, " ");
         return JSON.parse(sanitized);
       } catch {}
     }
   }
 
-  // 3. Parse trực tiếp
   try {
     return JSON.parse(text.trim());
   } catch {
@@ -48,76 +47,164 @@ export function extractJsonFromText(text: string): any {
 }
 
 /**
- * Trích xuất nghiệp vụ thông minh bằng Heuristics nếu AI bị gián đoạn hoặc không trả về JSON
+ * Nhận diện phân hệ nghiệp vụ từ nội dung tin nhắn
+ */
+export function inferModuleName(text: string): string {
+  const q = text.toLowerCase();
+  const domainMap: Array<[string[], string]> = [
+    [["đối chiếu", "pdcdt", "chủ đầu tư", "cđt"], "Đối chiếu CĐT"],
+    [["hóa đơn bán ra", "xuất hóa đơn", "sales invoice"], "Hóa đơn bán ra"],
+    [["sàn liên kết", "slk", "linked exchange"], "Hoa hồng Sàn liên kết"],
+    [["tạm ứng", "hoàn ứng", "khấu trừ tạm ứng"], "Tạm ứng & Hoàn ứng"],
+    [["tạm giữ", "giải tỏa"], "Tạm giữ Hoa hồng"],
+    [["đợt chi", "lệnh chi", "thanh toán hoa hồng"], "Đợt chi Hoa hồng"],
+    [["bảng tổng hợp", "hoa hồng tháng", "chia hh", "hoa hồng"], "Hoa hồng"],
+    [["kỳ kế toán", "đóng kỳ", "mở kỳ"], "Kỳ kế toán"],
+    [["giữ chỗ", "lock căn", "booking"], "Giữ chỗ"],
+    [["đặt cọc", "chuyển cọc", "hợp đồng đặt cọc"], "Đặt cọc"],
+    [["bảng hàng", "chỉ căn", "phân khu", "tòa nhà"], "Bảng hàng"],
+    [["crm", "khách hàng", "lead"], "CRM"],
+    [["ctv", "cộng tác viên"], "Cộng tác viên"],
+    [["thông báo", "notification", "fcm"], "Thông báo"],
+    [["nhân sự", "hrm", "chấm công"], "Nhân sự"],
+  ];
+
+  for (const [keywords, label] of domainMap) {
+    if (keywords.some((kw) => q.includes(kw))) {
+      return label;
+    }
+  }
+
+  // Kiểm tra tiền tố dạng [Phân hệ] (bỏ qua các mã project Plane như [CRM], [MVLCTV]...)
+  const bracketMatches = text.matchAll(/\[([^\]]{2,30})\]/g);
+  const projectCodes = new Set(["mvlctv", "mvl", "mvlgo", "maivietlan", "crm", "devops", "dstax", "feteams", "glintecowebs", "bug", "task", "feature"]);
+  for (const m of bracketMatches) {
+    const val = m[1].trim();
+    if (!projectCodes.has(val.toLowerCase())) {
+      return val;
+    }
+  }
+
+  return "Hệ thống";
+}
+
+/**
+ * Trích xuất người được giao việc (assignee) từ câu lệnh tạo task nhanh
+ */
+export function extractExplicitAssignee(text: string): string | undefined {
+  if (!text) return undefined;
+
+  // 1. Ưu tiên tuyệt đối tìm @username (ví dụ: @ducpm, @phuongkt)
+  const atMatches = Array.from(text.matchAll(/(?:^|\s)@([a-zA-Z0-9._\-]{2,30})\b/g));
+  for (const m of atMatches) {
+    const candidate = m[1].trim();
+    if (!["bot", "srs", "channel", "here", "everyone"].includes(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  // 2. Nếu không có dấu @, tìm cụm "giao cho <username>" hoặc "assign to <username>" ở cuối câu
+  const assignMatch = text.match(
+    /(?:giao\s+cho|assign\s+to|assign\s+cho)\s+([a-zA-Z0-9._\-]{3,30})\s*$/i
+  );
+  if (assignMatch && assignMatch[1]) {
+    return assignMatch[1].trim();
+  }
+
+  return undefined;
+}
+
+/**
+ * Trích xuất nhanh Task / Bug bằng Heuristics (hỗ trợ cả tạo nhanh 1 tin nhắn và tạo từ thread)
  */
 export function extractBugHeuristically(
   messages: any[],
   threadTs: string,
   commandText?: string
 ): ExtractedTaskInfo {
-  const combined = [commandText, ...messages.map((m) => m.text || "")].filter(Boolean).join(" ");
-  // Bỏ các tag mention <@U...>
+  const userMsgs = (messages || [])
+    .filter((m) => !m.bot_id && m.subtype !== "bot_message")
+    .map((m) => m.text || "");
+  const combined = [commandText, ...userMsgs].filter(Boolean).join(" ").trim();
   const clean = combined.replace(/<@[A-Z0-9]+>/g, "").trim();
 
-  // Tìm tên màn hình / phân hệ
-  let moduleName = "Chung";
-  let targetClean = clean.replace(/^(?:ở|tại)\s+/i, "");
-  const modPrefixMatch = targetClean.match(/^(?:màn\s+hình|màn|phân\s+hệ|trang)\s+([A-Za-z0-9À-ỹ\s]+?)(?:,|\.|-|\n|Nhập|Lỗi|lỗi|$)/i);
-  if (modPrefixMatch && modPrefixMatch[1]?.trim()) {
-    moduleName = modPrefixMatch[1].trim();
-  } else {
-    const modMatch = targetClean.match(
-      /(?:ở|tại|màn\s+hình|màn|phân\s+hệ|trang)\s+([A-Za-z0-9À-ỹ\s]+?)(?:,|\.|-|\n|Nhập|Lỗi|lỗi|$)/i
-    );
-    if (modMatch && modMatch[1]?.trim()) {
-      const rawMod = modMatch[1].trim();
-      if (rawMod.length >= 2 && rawMod.length <= 40) {
-        moduleName = rawMod;
-      }
-    }
-  }
+  const lower = clean.toLowerCase();
+  const isBug =
+    lower.includes("bug") ||
+    lower.includes("lỗi") ||
+    lower.includes("không được") ||
+    lower.includes("bị sai") ||
+    lower.includes("bị chặn") ||
+    lower.includes("exception") ||
+    lower.includes("500") ||
+    lower.includes("400");
 
-  // Lọc bỏ từ khóa kích hoạt lệnh tạo task
+  const taskType: "bug" | "task" = isBug ? "bug" : "task";
+  const moduleName = inferModuleName(clean);
+  const explicitAssignee = extractExplicitAssignee(clean);
+
+  // Làm sạch phần mô tả khỏi từ khóa ra lệnh và mã project/assignee
   let description = clean
-    .replace(/(?:tạo|báo|add)\s*(?:bug|task|lỗi)\s*(?:này|hộ|giúp)?\s*/gi, "")
-    .replace(/^(?:ở|tại)\s+(?:màn\s+hình|màn|phân\s+hệ|trang)?\s*/i, "")
+    .replace(/^\/?(?:create[-_]task|plane[-_]task|clickup[-_]task|task|bug)\s*/i, "")
+    .replace(/^(?:tạo|tao|báo|bao|log|lên|len)\s+(?:nhanh\s+)?(?:task|bug|lỗi|loi|việc|issue)(?:\s+trên\s+plane|\s+plane|\s+clickup|\s+này|\s+hộ|\s+giúp)?\s*[:\-]?\s*/i, "")
+    .replace(/\[(?:MVLCTV|MVL|MVLGO|MAIVIETLAN|CRM|DEVOPS|DSTAX|FETEAMS|GLINTECOWEBS)\]\s*[:\-]?\s*/gi, "")
+    .replace(/(?:dự\s*án|project)\s*[:=]?\s*(?:MVLCTV|MVL|MVLGO|MAIVIETLAN|CRM|DEVOPS|DSTAX|FETEAMS|GLINTECOWEBS)\s*[:\-]?\s*/gi, "")
+    .replace(/(?:giao\s+cho|giao|assign\s+to|assign)\s+@?[a-zA-Z0-9._\-]+\s*$/i, "")
+    .replace(/\s+@[a-zA-Z0-9._\-]+\s*$/i, "")
     .trim();
 
-  if (!description || description.length < 5) {
-    description = clean || `Lỗi phát hiện từ Slack thread ${threadTs}`;
+  if (!description || description.length < 3) {
+    description = clean || `Yêu cầu từ Slack ${threadTs || "trực tiếp"}`;
   }
 
   const shortDesc =
-    description.length > 60 ? description.substring(0, 57).trim() + "..." : description;
-  const taskName = `[BUG] [${moduleName}] - ${shortDesc}`;
+    description.length > 65 ? description.substring(0, 62).trim() + "..." : description;
+  const prefix = taskType === "bug" ? "[BUG]" : "[TASK]";
+  const taskName = `${prefix} [${moduleName}] - ${shortDesc}`;
+
+  let severity: "urgent" | "high" | "medium" | "low" = isBug ? "high" : "medium";
+  if (lower.includes("urgent") || lower.includes("khẩn") || lower.includes("gấp") || lower.includes("blocker") || lower.includes("500")) {
+    severity = "urgent";
+  } else if (lower.includes("low") || lower.includes("nhỏ") || lower.includes("minor")) {
+    severity = "low";
+  }
 
   return {
+    taskType,
     taskName,
     moduleName,
     stepsToReproduce: [
-      `1. Truy cập vào màn hình/phân hệ: ${moduleName}`,
-      `2. Thực hiện thao tác: ${shortDesc}`,
-      `3. Quan sát kết quả xử lý của hệ thống`,
+      `Truy cập phân hệ ${moduleName}`,
+      `Thực hiện: ${shortDesc}`,
     ],
     actualBehavior: description,
-    expectedBehavior: "Hệ thống xử lý và lưu trữ dữ liệu chính xác, đúng nghiệp vụ quy định.",
-    severity: "high",
+    expectedBehavior:
+      taskType === "bug"
+        ? "Hệ thống xử lý chính xác theo đúng quy định nghiệp vụ."
+        : "Hoàn thành tính năng/công việc đúng yêu cầu nghiệp vụ.",
+    severity,
+    explicitAssignee,
   };
 }
 
 /**
- * Trích xuất thông tin Bug Report từ nội dung thảo luận Slack Thread
+ * Trích xuất thông tin Task / Bug từ tin nhắn đơn lẻ hoặc Slack Thread
  */
 export async function extractTaskFromThread(params: {
   messages: any[];
   threadTs: string;
   query: string;
-  aiClient: any;
+  aiClient?: any;
 }): Promise<ExtractedTaskInfo> {
   const { messages, threadTs, query, aiClient } = params;
+  const fallback = extractBugHeuristically(messages, threadTs, query);
 
-  // Lọc lấy nội dung thảo luận (bỏ các tag bot)
-  const threadText = messages
+  if (!aiClient) {
+    return fallback;
+  }
+
+  const threadText = (messages || [])
+    .filter((m) => !m.bot_id && m.subtype !== "bot_message")
     .map((m) => {
       const u = m.user || "User";
       const t = (m.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
@@ -126,67 +213,73 @@ export async function extractTaskFromThread(params: {
     .filter(Boolean)
     .join("\n");
 
-  const prompt = `Bạn là trợ lý QA kỹ thuật cao cấp của hệ thống MaiVietLand ERP.
-Nhiệm vụ: Hãy phân tích đoạn thảo luận sau từ Slack thread và trích xuất thông tin tạo Bug Report chuẩn cho hệ thống Plane.
-BẮT BUỘC chỉ trả về DUY NHẤT 1 đối tượng JSON hợp lệ, KHÔNG viết bất kỳ lời chào, giải thích hay markdown nào bên ngoài JSON.
+  const inputContext = [query, threadText].filter(Boolean).join("\n").trim();
+  if (!inputContext) {
+    return fallback;
+  }
 
-Schema JSON:
+  const prompt = `Trích xuất thông tin tạo Task/Bug ngắn gọn trên Plane từ yêu cầu Slack sau.
+BẮT BUỘC chỉ trả về DUY NHẤT 1 JSON hợp lệ (không markdown, không giải thích):
 {
-  "taskName": "[BUG] [Tên phân hệ] - Mô tả lỗi ngắn gọn (dưới 70 ký tự)",
-  "moduleName": "Tên phân hệ (ví dụ: Chia HH thực nhận, Quản lý Quỹ, Tạm ứng, Đặt cọc, CRM...)",
-  "stepsToReproduce": ["1. Truy cập màn hình...", "2. Thực hiện thao tác..."],
-  "actualBehavior": "Mô tả lỗi thực tế gặp phải",
-  "expectedBehavior": "Mô tả kết quả mong muốn đúng nghiệp vụ",
-  "severity": "Blocker / Critical / Major / Minor"
+  "taskType": "bug" hoặc "task",
+  "taskName": "[BUG/TASK] [Tên phân hệ] - Tiêu đề ngắn gọn dưới 65 ký tự",
+  "moduleName": "Tên phân hệ ngắn gọn",
+  "stepsToReproduce": ["Bước 1...", "Bước 2..."],
+  "actualBehavior": "Mô tả lỗi hoặc yêu cầu ngắn gọn",
+  "expectedBehavior": "Kết quả mong muốn ngắn gọn",
+  "severity": "urgent | high | medium | low",
+  "explicitAssignee": "username hoặc tên người được giao nếu có"
 }
 
-Nội dung thảo luận:
-${threadText || query}`;
+Nội dung:
+${inputContext}`;
 
   try {
     const parsedRes = await aiClient.generateContent({
       contents: [{ role: "user", parts: [{ text: prompt }] }],
-      systemInstruction:
-        "Bạn là API phân tích dữ liệu. Chỉ trả về chuỗi JSON thuần túy, không có text hay markdown ngoài JSON.",
+      systemInstruction: "Chỉ trả về chuỗi JSON thuần túy.",
       temperature: 0.1,
     });
 
     const parsedJson = extractJsonFromText(parsedRes?.text || "");
     if (parsedJson && parsedJson.taskName) {
-      const severityMap: Record<string, "urgent" | "high" | "medium" | "low" | "none"> = {
-        blocker: "urgent",
-        critical: "urgent",
-        major: "high",
-        medium: "medium",
-        minor: "low",
-      };
+      const rawType = String(parsedJson.taskType || fallback.taskType).toLowerCase();
+      const taskType: "bug" | "task" = rawType === "task" || rawType === "feature" ? "task" : "bug";
+      const moduleName = String(parsedJson.moduleName || fallback.moduleName).trim();
 
-      const rawSeverity = String(parsedJson.severity || "Major").toLowerCase();
-      const planePriority = severityMap[rawSeverity] || "high";
-
-      // Kiểm tra xem taskName có bị generic không
       let finalTaskName = String(parsedJson.taskName).trim();
-      const moduleName = String(parsedJson.moduleName || "Chung").trim();
-
-      if (finalTaskName.toLowerCase().includes("lỗi phát hiện từ slack thread") || finalTaskName.length < 10) {
-        finalTaskName = `[BUG] [${moduleName}] - ${parsedJson.actualBehavior?.substring(0, 55) || "Lỗi nghiệp vụ"}`;
+      if (finalTaskName.length < 8) {
+        finalTaskName = fallback.taskName;
       }
 
+      const rawSev = String(parsedJson.severity || fallback.severity).toLowerCase();
+      const sevMap: Record<string, "urgent" | "high" | "medium" | "low"> = {
+        blocker: "urgent",
+        critical: "urgent",
+        urgent: "urgent",
+        major: "high",
+        high: "high",
+        medium: "medium",
+        minor: "low",
+        low: "low",
+      };
+
       return {
+        taskType,
         taskName: finalTaskName,
         moduleName,
         stepsToReproduce: Array.isArray(parsedJson.stepsToReproduce)
           ? parsedJson.stepsToReproduce
-          : [String(parsedJson.stepsToReproduce || "Xem chi tiết trong link thảo luận Slack")],
-        actualBehavior: String(parsedJson.actualBehavior || "Lỗi phát sinh trong quá trình thao tác"),
-        expectedBehavior: String(parsedJson.expectedBehavior || "Hệ thống xử lý đúng quy định nghiệp vụ"),
-        severity: planePriority,
+          : fallback.stepsToReproduce,
+        actualBehavior: String(parsedJson.actualBehavior || fallback.actualBehavior),
+        expectedBehavior: String(parsedJson.expectedBehavior || fallback.expectedBehavior),
+        severity: sevMap[rawSev] || fallback.severity,
+        explicitAssignee: parsedJson.explicitAssignee || fallback.explicitAssignee,
       };
     }
   } catch (aiErr) {
-    console.warn("AI task extraction error, falling back to heuristic:", aiErr);
+    console.warn("AI task extraction fallback to heuristic:", aiErr);
   }
 
-  // Fallback thông minh nếu AI gặp lỗi
-  return extractBugHeuristically(messages, threadTs, query);
+  return fallback;
 }

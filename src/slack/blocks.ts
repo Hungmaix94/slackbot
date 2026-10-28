@@ -1,16 +1,13 @@
 import { markdownToSlackLinks } from "../utils/markdown";
 
-export function createProgressBlock(step: number, total: number, message: string): any[] {
-  const percent = Math.round((step / total) * 100);
-  const progressBar = "▓".repeat(step) + "░".repeat(Math.max(0, total - step));
-
+export function createProgressBlock(_step: number, _total: number, message: string): any[] {
   return [
     {
       type: "context",
       elements: [
         {
           type: "mrkdwn",
-          text: `*Tiến trình:* \`[${progressBar}] ${percent}%\` — *${message}*`,
+          text: `⏳ _${message}_`,
         },
       ],
     },
@@ -28,10 +25,10 @@ export function createAnswerBlocks(
   }
 ): any[] {
   const blocks: any[] = [];
-  const safeText = text && text.trim().length > 0 ? text : "Không có nội dung phản hồi từ hệ thống.";
+  const safeText = text && text.trim().length > 0 ? text.trim() : "Mình chưa tìm thấy thông tin phù hợp cho yêu cầu này.";
   const slackText = markdownToSlackLinks(safeText);
 
-  // Chia nhỏ text nếu vượt quá 3000 ký tự (giới hạn một block text của Slack)
+  // Chia nhỏ text nếu vượt quá 2800 ký tự (giới hạn một block text của Slack là 3000)
   const chunkSize = 2800;
   for (let i = 0; i < slackText.length; i += chunkSize) {
     blocks.push({
@@ -53,7 +50,7 @@ export function createAnswerBlocks(
     });
   }
 
-  // Interactive buttons
+  // Interactive buttons gọn nhẹ
   const actionElements: any[] = [];
 
   if (options?.hasExcel) {
@@ -87,7 +84,7 @@ export function createAnswerBlocks(
     type: "button",
     text: {
       type: "plain_text",
-      text: "🐛 Tạo Bug Plane",
+      text: "🐛 Tạo Task Plane",
       emoji: true,
     },
     action_id: "create_plane_task",
@@ -111,53 +108,32 @@ export function createTaskCreatedCard(task: {
   url: string;
   assigneeName?: string;
   status?: string;
+  priority?: string;
   attachmentsCount?: number;
   systemName?: string;
   projectName?: string;
 }): any[] {
   const system = task.systemName || "Plane";
-  const displayId = task.displayId || task.id;
+  const displayId = task.displayId || task.id.slice(0, 8);
+  const projectLabel = task.projectName || "MVLCTV";
+  const assigneeLabel = task.assigneeName || "Chưa gán";
+  const priorityLabel = (task.priority || "high").toUpperCase();
+  const attachNote =
+    task.attachmentsCount && task.attachmentsCount > 0
+      ? ` | *Đính kèm:* ${task.attachmentsCount} tệp`
+      : "";
 
-  const fields: any[] = [
-    {
-      type: "mrkdwn",
-      text: `*Mã Task:* <${task.url}|[${displayId}]>`,
-    },
-    {
-      type: "mrkdwn",
-      text: `*Người thực hiện:* ${task.assigneeName || "Chưa gán"}`,
-    },
-  ];
-
-  if (task.projectName) {
-    fields.push({
-      type: "mrkdwn",
-      text: `*Dự án:* ${task.projectName}`,
-    });
-  }
-
-  fields.push(
-    {
-      type: "mrkdwn",
-      text: `*Tiêu đề:* ${task.name}`,
-    },
-    {
-      type: "mrkdwn",
-      text: `*Trạng thái:* ${task.status || "Backlog"}`,
-    }
-  );
+  const summaryText =
+    `✅ *Đã tạo task ${system}:* <${task.url}|[${displayId}] ${task.name}>\n` +
+    `• *Dự án:* ${projectLabel} | *Ưu tiên:* \`${priorityLabel}\` | *Giao cho:* ${assigneeLabel}${attachNote}`;
 
   return [
     {
       type: "section",
       text: {
         type: "mrkdwn",
-        text: `🎉 *Đã tạo thành công task trên ${system} từ thread!*`,
+        text: summaryText,
       },
-    },
-    {
-      type: "section",
-      fields,
     },
     {
       type: "actions",
@@ -166,7 +142,7 @@ export function createTaskCreatedCard(task: {
           type: "button",
           text: {
             type: "plain_text",
-            text: `🔗 Mở Task ${system}`,
+            text: `🔗 Mở trên ${system}`,
             emoji: true,
           },
           url: task.url,

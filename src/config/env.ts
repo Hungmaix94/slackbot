@@ -9,6 +9,7 @@ export interface Env {
   // Environment variables & Secrets
   SLACK_BOT_TOKEN: string;
   SLACK_SIGNING_SECRET: string;
+  AUDIT_SLACK_CHANNEL_ID?: string;
   GEMINI_API_KEY?: string;
   AI_PROVIDER?: "cloudflare" | "gemini" | "openai" | "deepseek";
   WORKERS_AI_MODEL?: string;
@@ -19,7 +20,7 @@ export interface Env {
   PLANE_WORKSPACE_SLUG?: string;
   PLANE_DEFAULT_PROJECT_ID?: string;
   PLANE_DEFAULT_STATE_ID?: string;
-  CF_AI_GATEWAY_URL?: string; // Optional: https://gateway.ai.cloudflare.com/v1/{account}/{gateway}
+  CF_AI_GATEWAY_URL?: string;
   GITHUB_TOKEN?: string;
   GITHUB_DEFAULT_ORG?: string;
   GITHUB_WEBHOOK_SECRET?: string;

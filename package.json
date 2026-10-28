@@ -7,7 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "cf-typegen": "wrangler types",
-    "build": "tsc --noEmit"
+    "build": "tsc --noEmit",
+    "test": "npx tsx scripts/run-300-tests.ts",
+    "test:py": "python3 tests/test_suite_300.py"
   },
   "keywords": [
     "slackbot",

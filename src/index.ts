@@ -4,26 +4,32 @@ import { verifySlackSignature } from "./slack/verify";
 import { AgentOrchestrator, CODE_TOOLS } from "./agents/orchestrator";
 import { ingestDocuments } from "./rag/sync-webhook";
 import { SrsSearchService } from "./rag/search";
-import { classifyIntent } from "./agents/router";
+import { classifyIntent, isTechRequested } from "./agents/router";
 import {
   SYSTEM_INSTRUCTION_DEFAULT,
   SYSTEM_INSTRUCTION_BA,
   SYSTEM_INSTRUCTION_QA,
   SYSTEM_INSTRUCTION_DEV,
+  sanitizeAgentResponse,
 } from "./agents/prompts";
 import { WorkersAiClient } from "./ai/workers-ai";
 import { GeminiClient, GeminiContent } from "./ai/gemini";
 import { GitHubClient } from "./github/client";
 import { getSmartCodeContext } from "./agents/code-context";
-
 import { PlaneClient } from "./plane/client";
 import { SlackClient } from "./slack/client";
+import { runSrsCodeAudit, runScheduledSrsCodeAudit } from "./audit/srs-code-auditor";
 
 const app = new Hono<{ Bindings: Env }>();
 
 // 1. Health check
 app.get("/health", (c) => {
-  return c.json({ status: "ok", service: "mvl-slack-assistant", timestamp: new Date().toISOString() });
+  return c.json({
+    status: "ok",
+    service: "mvl-slack-assistant",
+    features: ["business-first-qa", "tech-check-code", "fast-plane-task", "scheduled-srs-code-audit"],
+    timestamp: new Date().toISOString(),
+  });
 });
 
 // Sync / Inspect Plane users
@@ -51,11 +57,25 @@ app.get("/plane/users", async (c) => {
   }
 });
 
+// Audit SRS vs Code endpoints (On-demand & Scheduled Inspection)
+app.get("/audit/report", async (c) => {
+  const filterQuery = c.req.query("q") || "";
+  const srsSearch = new SrsSearchService(c.env);
+  const github = c.env.GITHUB_TOKEN ? new GitHubClient(c.env.GITHUB_TOKEN) : undefined;
+  const report = await runSrsCodeAudit({ query: filterQuery, srsSearch, github });
+  return c.json(report);
+});
+
+app.post("/audit/run", async (c) => {
+  const report = await runScheduledSrsCodeAudit(c.env);
+  return c.json(report);
+});
+
 app.get("/", (c) => {
   return c.text("MVL Assistant Slackbot (Cloudflare Edge Edition) is running!");
 });
 
-// 2. Slack Events API (app_mention, message)
+// 2. Slack Events API (app_mention, direct message)
 app.post("/slack/events", async (c) => {
   const rawBody = await c.req.text();
   const signature = c.req.header("x-slack-signature") || null;
@@ -68,12 +88,10 @@ app.post("/slack/events", async (c) => {
     return c.text("Invalid JSON", 400);
   }
 
-  // A. Xử lý Slack URL Verification Challenge (không cần check signature khi setup app lần đầu)
   if (body.type === "url_verification") {
     return c.json({ challenge: body.challenge });
   }
 
-  // B. Xác thực chữ ký Slack
   const isValid = await verifySlackSignature(
     c.env.SLACK_SIGNING_SECRET,
     signature,
@@ -86,28 +104,20 @@ app.post("/slack/events", async (c) => {
     return c.text("Unauthorized", 401);
   }
 
-  // C. Xử lý Event
   const event = body.event;
-  if (!event) {
+  if (!event || event.bot_id || event.subtype === "bot_message") {
     return c.text("OK", 200);
   }
 
-  // Bỏ qua tin nhắn từ chính bot (tránh loop vô tận)
-  if (event.bot_id || event.subtype === "bot_message") {
-    return c.text("OK", 200);
-  }
-
-  // Bắt sự kiện app_mention (tag @bot)
-  if (event.type === "app_mention") {
+  const isDirectMessage = event.type === "message" && event.channel_type === "im";
+  if (event.type === "app_mention" || isDirectMessage) {
     const channelId = event.channel;
     const threadTs = event.thread_ts || event.ts;
     const userId = event.user;
     const text = event.text || "";
 
-    // Làm sạch câu query (bỏ mã tag bot <@UXXXXX>)
     const cleanQuery = text.replace(/<@[A-Z0-9]+>/g, "").trim();
 
-    // Chạy xử lý ngầm (Async dispatch) qua executionCtx để trả HTTP 200 ngay lập tức cho Slack
     c.executionCtx.waitUntil(
       (async () => {
         try {
@@ -115,16 +125,13 @@ app.post("/slack/events", async (c) => {
           let history: any[] = [];
           let effectiveQuery = cleanQuery;
 
-          // Nếu mention diễn ra trong một thread, nạp ngữ cảnh thread
           if (event.thread_ts) {
             try {
               const slack = new SlackClient(c.env.SLACK_BOT_TOKEN);
               const threadMsgs = await slack.getConversationReplies(channelId, event.thread_ts);
-              // Lọc bỏ tin nhắn mention hiện tại
               history = (threadMsgs || []).filter((m: any) => m.ts !== event.ts);
 
-              // Nếu câu query quá ngắn (ví dụ: "trả lời :v", "sao thế", "alo"), lấy câu hỏi/lỗi trước đó trong thread làm ngữ cảnh
-              if (cleanQuery.length < 25 && history.length > 0) {
+              if (cleanQuery.length < 25 && history.length > 0 && classifyIntent(cleanQuery) === "SRS_QA") {
                 const lastUserMsg = [...history].reverse().find((m: any) => !m.bot_id && m.text);
                 if (lastUserMsg) {
                   const cleanedPrev = (lastUserMsg.text || "").replace(/<@[A-Z0-9]+>/g, "").trim();
@@ -151,14 +158,13 @@ app.post("/slack/events", async (c) => {
       })()
     );
 
-    // Trả về HTTP 200 ngay lập tức (< 200ms) để Slack không retry
     return c.text("OK", 200);
   }
 
   return c.text("OK", 200);
 });
 
-// 3. Slack Slash Commands (/usecase, /testcase, /create-task, /bugs)
+// 3. Slack Slash Commands (/usecase, /testcase, /create-task, /bugs, /audit, /srs)
 app.post("/slack/commands", async (c) => {
   const rawBody = await c.req.text();
   const signature = c.req.header("x-slack-signature") || null;
@@ -201,7 +207,7 @@ app.post("/slack/commands", async (c) => {
 
   return c.json({
     response_type: "in_channel",
-    text: `⚡ Đã tiếp nhận lệnh \`${command}\`. Bot đang xử lý...`,
+    text: `⚡ Đã nhận lệnh \`${command}\`, đang xử lý...`,
   });
 });
 
@@ -260,127 +266,139 @@ app.post("/sync/github", async (c) => {
   });
 });
 
-// 6. Test Endpoint (cho phép kiểm tra trực tiếp phản hồi của Cloudflare Workers AI)
+// 6. Test Endpoint
 app.post("/test/query", async (c) => {
   try {
     const body = await c.req.json();
     const query = body.query || "";
     if (!query) return c.json({ error: "Missing query" }, 400);
 
-  const srsSearch = new SrsSearchService(c.env);
-  const srsResults = await srsSearch.search(query, 4);
+    const intent = classifyIntent(query);
+    const techMode = isTechRequested(query);
 
-  let srsContext = "";
-  if (srsResults.length > 0) {
-    srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU TỪ HỆ THỐNG ===\n";
-    srsResults.forEach((r, idx) => {
-      srsContext += `\n[Tài liệu ${idx + 1}: ${r.docId} | Đề mục: ${r.heading}]\n${r.content}\n`;
-    });
-  }
-
-  const intent = classifyIntent(query);
-  let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
-  if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
-  if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
-  const github = c.env.GITHUB_TOKEN ? new GitHubClient(c.env.GITHUB_TOKEN) : undefined;
-  let codeContext = "";
-  if (github) {
-    codeContext = await getSmartCodeContext(query, github);
-  }
-  if (intent === "CODE_DEV" || codeContext) {
-    systemInstruction = SYSTEM_INSTRUCTION_DEV;
-  }
-
-  const useWorkersAi = c.env.AI_PROVIDER === "cloudflare" || !c.env.GEMINI_API_KEY;
-  const aiClient = useWorkersAi && c.env.AI
-    ? new WorkersAiClient(c.env)
-    : new GeminiClient(c.env);
-
-  const contents: GeminiContent[] = [
-    {
-      role: "user",
-      parts: [{ text: `${query}\n\n${srsContext}${codeContext}` }],
-    },
-  ];
-
-  const tools = codeContext ? undefined : (github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
-
-  let responseText = "";
-  const maxTurns = codeContext ? 1 : 2;
-  let currentTurn = 0;
-  const toolTrace: any[] = [];
-
-  while (currentTurn < maxTurns) {
-    currentTurn++;
-    const isFinalTurn = currentTurn === maxTurns;
-    const activeTools = isFinalTurn ? undefined : tools;
-
-    const aiResponse = await aiClient.generateContent({
-      contents,
-      systemInstruction: isFinalTurn
-        ? `${systemInstruction}\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và các đoạn mã nguồn đã được cung cấp để giải thích tường tận nguyên nhân gốc rễ, trích dẫn file code và đưa ra giải pháp rõ ràng bằng tiếng Việt theo đúng cấu trúc 3 phần. TUYỆT ĐỐI KHÔNG gọi thêm tool.`
-        : systemInstruction,
-      tools: activeTools,
-      temperature: 0.2,
-    });
-
-    if (!isFinalTurn && aiResponse.functionCalls && aiResponse.functionCalls.length > 0 && github) {
-      for (const call of aiResponse.functionCalls) {
-        contents.push({
-          role: "model",
-          parts: [{ functionCall: call }],
-        });
-
-        let toolResult = "";
-        try {
-          if (call.name === "search_codebase") {
-            const repo = call.args.repo || "backend";
-            const q = call.args.query || "";
-            const searchRes = await github.searchCode(repo, q);
-            toolResult = JSON.stringify(searchRes);
-          } else if (call.name === "read_code_file") {
-            const repo = call.args.repo || "backend";
-            const filePath = call.args.filePath || "";
-            const fileRes = await github.readFile(repo, filePath, {
-              startLine: call.args.startLine,
-              endLine: call.args.endLine,
-            });
-            toolResult = fileRes.content;
-          } else if (call.name === "list_repository_files") {
-            const repo = call.args.repo || "backend";
-            const prefix = call.args.prefix || "";
-            const listRes = await github.listFiles(repo, { prefix });
-            toolResult = JSON.stringify(listRes);
-          }
-        } catch (toolErr: any) {
-          toolResult = `Error: ${toolErr.message || String(toolErr)}`;
-        }
-
-        toolTrace.push({ name: call.name, args: call.args, resultSnippet: toolResult.slice(0, 300) });
-
-        contents.push({
-          role: "user",
-          parts: [
-            {
-              functionResponse: {
-                name: call.name,
-                response: { result: toolResult },
-              },
-            },
-          ],
-        });
-      }
-    } else {
-      responseText = aiResponse.text;
-      break;
+    if (intent === "AUDIT_SRS_CODE") {
+      const report = await runSrsCodeAudit({ query });
+      return c.json({
+        query,
+        intent,
+        techMode,
+        response: report.markdownSummary,
+        auditReport: report,
+      });
     }
-  }
+
+    const srsSearch = new SrsSearchService(c.env);
+    const srsResults = await srsSearch.search(query, 4);
+
+    let srsContext = "";
+    if (srsResults.length > 0) {
+      srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU ===\n";
+      srsResults.forEach((r, idx) => {
+        srsContext += `\n[Tài liệu ${idx + 1}: ${r.docId} | Đề mục: ${r.heading}]\n${r.content}\n`;
+      });
+    }
+
+    const github = c.env.GITHUB_TOKEN ? new GitHubClient(c.env.GITHUB_TOKEN) : undefined;
+    const codeContext = await getSmartCodeContext(query, github, { allowTech: techMode });
+
+    let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
+    if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
+    else if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
+    else if (techMode) systemInstruction = SYSTEM_INSTRUCTION_DEV;
+
+    const useWorkersAi = c.env.AI_PROVIDER === "cloudflare" || !c.env.GEMINI_API_KEY;
+    const aiClient =
+      useWorkersAi && c.env.AI ? new WorkersAiClient(c.env) : new GeminiClient(c.env);
+
+    const contents: GeminiContent[] = [
+      {
+        role: "user",
+        parts: [{ text: `${query}\n\n${srsContext}${codeContext}` }],
+      },
+    ];
+
+    const tools =
+      techMode && !codeContext && github ? [{ functionDeclarations: CODE_TOOLS }] : undefined;
+
+    let rawResponseText = "";
+    const maxTurns = tools ? 2 : 1;
+    let currentTurn = 0;
+    const toolTrace: any[] = [];
+
+    while (currentTurn < maxTurns) {
+      currentTurn++;
+      const isFinalTurn = currentTurn === maxTurns;
+      const activeTools = isFinalTurn ? undefined : tools;
+
+      const aiResponse = await aiClient.generateContent({
+        contents,
+        systemInstruction,
+        tools: activeTools,
+        temperature: 0.2,
+      });
+
+      if (!isFinalTurn && aiResponse.functionCalls && aiResponse.functionCalls.length > 0 && github) {
+        for (const call of aiResponse.functionCalls) {
+          contents.push({
+            role: "model",
+            parts: [{ functionCall: call }],
+          });
+
+          let toolResult = "";
+          try {
+            if (call.name === "search_codebase") {
+              const repo = call.args.repo || "backend";
+              const q = call.args.query || "";
+              const searchRes = await github.searchCode(repo, q);
+              toolResult = JSON.stringify(searchRes);
+            } else if (call.name === "read_code_file") {
+              const repo = call.args.repo || "backend";
+              const filePath = call.args.filePath || "";
+              const fileRes = await github.readFile(repo, filePath, {
+                startLine: call.args.startLine,
+                endLine: call.args.endLine,
+              });
+              toolResult = fileRes.content;
+            } else if (call.name === "list_repository_files") {
+              const repo = call.args.repo || "backend";
+              const prefix = call.args.prefix || "";
+              const listRes = await github.listFiles(repo, { prefix });
+              toolResult = JSON.stringify(listRes);
+            }
+          } catch (toolErr: any) {
+            toolResult = `Error: ${toolErr.message || String(toolErr)}`;
+          }
+
+          toolTrace.push({ name: call.name, args: call.args, resultSnippet: toolResult.slice(0, 300) });
+
+          contents.push({
+            role: "user",
+            parts: [
+              {
+                functionResponse: {
+                  name: call.name,
+                  response: { result: toolResult },
+                },
+              },
+            ],
+          });
+        }
+      } else {
+        rawResponseText = aiResponse.text;
+        break;
+      }
+    }
+
+    const responseText = sanitizeAgentResponse(rawResponseText, techMode);
 
     return c.json({
       query,
       intent,
+      techMode,
       provider: useWorkersAi ? "cloudflare-workers-ai" : "gemini",
-      model: useWorkersAi ? (c.env.WORKERS_AI_MODEL || "@cf/meta/llama-3.3-70b-instruct") : (c.env.DEFAULT_MODEL || "gemini-2.5-flash"),
+      model: useWorkersAi
+        ? c.env.WORKERS_AI_MODEL || "@cf/meta/llama-3.3-70b-instruct"
+        : c.env.DEFAULT_MODEL || "gemini-2.5-flash",
       srsCount: srsResults.length,
       toolTrace,
       response: responseText,
@@ -390,4 +408,9 @@ app.post("/test/query", async (c) => {
   }
 });
 
-export default app;
+export default {
+  fetch: app.fetch,
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runScheduledSrsCodeAudit(env));
+  },
+};

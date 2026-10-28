@@ -5,19 +5,20 @@ import { ClickUpClient } from "../clickup/client";
 import { PlaneClient } from "../plane/client";
 import { GitHubClient } from "../github/client";
 import { GeminiClient, GeminiContent, GeminiFunctionDeclaration } from "../ai/gemini";
-import { WorkersAiService, WorkersAiClient } from "../ai/workers-ai";
-import { classifyIntent } from "./router";
+import { WorkersAiClient } from "../ai/workers-ai";
+import { classifyIntent, isTechRequested } from "./router";
 import { getSmartCodeContext } from "./code-context";
 import {
   SYSTEM_INSTRUCTION_DEFAULT,
   SYSTEM_INSTRUCTION_BA,
   SYSTEM_INSTRUCTION_QA,
   SYSTEM_INSTRUCTION_DEV,
+  sanitizeAgentResponse,
 } from "./prompts";
 import { parseAllMarkdownTables } from "../utils/markdown";
 import { generateExcelFromTables } from "../excel/generator";
 import { createAnswerBlocks, createProgressBlock, createTaskCreatedCard } from "../slack/blocks";
-import { resolvePlaneUserId } from "../slack/user-mapping";
+import { INITIAL_SLACK_TO_PLANE_USERS, resolvePlaneUserId } from "../slack/user-mapping";
 import { checkDuplicatePlaneIssues } from "../plane/duplicates";
 import { buildPlaneBugHtmlDescription } from "../plane/task-builder";
 import {
@@ -27,11 +28,13 @@ import {
   formatProjectsListBlocks,
 } from "../plane/projects";
 import { extractTaskFromThread } from "../ai/task-extractor";
+import { runSrsCodeAudit } from "../audit/srs-code-auditor";
 
 export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
   {
     name: "search_codebase",
-    description: "Tìm kiếm các file code hoặc biểu thức logic trong repository. QUAN TRỌNG: Mã nguồn dự án viết bằng tiếng Anh/Python/TypeScript. KHÔNG tìm bằng câu tiếng Việt. Bắt buộc dùng từ khóa kỹ thuật, tên model, hàm hoặc biến (ví dụ: 'SalesInvoice', 'sales_invoice', 'pdcdt', 'reconciliation', 'period', 'commission').",
+    description:
+      "Tìm kiếm các file code hoặc biểu thức logic trong repository bằng từ khóa kỹ thuật tiếng Anh.",
     parameters: {
       type: "OBJECT",
       properties: {
@@ -41,7 +44,7 @@ export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
         },
         query: {
           type: "STRING",
-          description: "Từ khóa code tiếng Anh, tên class, hàm, model (ví dụ: 'SalesInvoice', 'sales_invoice', 'reconciliation', 'period').",
+          description: "Từ khóa code tiếng Anh, tên class, hàm, model.",
         },
       },
       required: ["repo", "query"],
@@ -49,25 +52,25 @@ export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
   },
   {
     name: "read_code_file",
-    description: "Đọc nội dung của một file code cụ thể từ GitHub. Có thể chỉ định khoảng dòng bắt đầu và kết thúc.",
+    description: "Đọc nội dung của một file code cụ thể từ GitHub.",
     parameters: {
       type: "OBJECT",
       properties: {
         repo: {
           type: "STRING",
-          description: "Tên repo hoặc alias: 'backend', 'web', 'mobile', 'chat', 'app-sale'.",
+          description: "Tên repo: 'backend', 'web', 'mobile', 'chat', 'app-sale'.",
         },
         filePath: {
           type: "STRING",
-          description: "Đường dẫn file (ví dụ: 'apps/advances/services.py' hoặc 'src/api/schema.ts').",
+          description: "Đường dẫn file (ví dụ: 'apps/accounting/services/sales_invoice_service.py').",
         },
         startLine: {
           type: "INTEGER",
-          description: "Dòng bắt đầu cần đọc (1-indexed).",
+          description: "Dòng bắt đầu (1-indexed).",
         },
         endLine: {
           type: "INTEGER",
-          description: "Dòng kết thúc cần đọc.",
+          description: "Dòng kết thúc.",
         },
       },
       required: ["repo", "filePath"],
@@ -85,7 +88,7 @@ export const CODE_TOOLS: GeminiFunctionDeclaration[] = [
         },
         prefix: {
           type: "STRING",
-          description: "Tiền tố thư mục cần duyệt (ví dụ: 'apps/booking' hoặc 'src/pages').",
+          description: "Tiền tố thư mục cần duyệt.",
         },
       },
       required: ["repo"],
@@ -131,13 +134,12 @@ export class AgentOrchestrator {
     const { channelId, threadTs, userId, query } = params;
     const targetThreadTs = threadTs;
 
-    // 1. Gửi tin nhắn tiến trình đầu tiên
     const progressMsg = await this.slack.postMessage(
       channelId,
-      "⏳ Đang khởi động phân tích yêu cầu...",
+      "⏳ Đang xử lý yêu cầu...",
       {
-        thread_ts: targetThreadTs,
-        blocks: createProgressBlock(1, 3, "Đang phân tích ý định & tra cứu tài liệu SRS..."),
+        thread_ts: targetThreadTs || undefined,
+        blocks: createProgressBlock(1, 2, "Đang kiểm tra thông tin nghiệp vụ..."),
       }
     );
 
@@ -164,25 +166,20 @@ export class AgentOrchestrator {
       console.error("Lỗi xử lý Agent:", err);
       const isTimeout = err?.message === "TIMEOUT_22S";
       const errorMsg = isTimeout
-        ? "⏱️ *Thời gian xử lý vượt quá giới hạn an toàn (22s)*.\n\n💡 *Gợi ý*: Tác vụ tra cứu và đọc mã nguồn tốn nhiều thời gian suy luận. Bạn vui lòng chỉ định trực tiếp mã lỗi hoặc đường dẫn file (ví dụ: `apps/notifications/tasks.py`) để bot trả lời nhanh trong 1 bước."
-        : `❌ *Lỗi khi xử lý yêu cầu:* ${err.message || String(err)}`;
+        ? "⏱️ *Yêu cầu xử lý quá thời gian cho phép.* Bạn vui lòng thử lại với câu hỏi ngắn gọn hơn nhé!"
+        : `⚠️ *Chưa thể hoàn tất yêu cầu:* ${err.message || String(err)}`;
 
-      await this.slack.updateMessage(
-        channelId,
-        progressMsg.ts,
-        errorMsg,
-        {
-          blocks: [
-            {
-              type: "section",
-              text: {
-                type: "mrkdwn",
-                text: errorMsg,
-              },
+      await this.slack.updateMessage(channelId, progressMsg.ts, errorMsg, {
+        blocks: [
+          {
+            type: "section",
+            text: {
+              type: "mrkdwn",
+              text: errorMsg,
             },
-          ],
-        }
-      );
+          },
+        ],
+      });
     } finally {
       clearTimeout(timeoutId);
     }
@@ -199,90 +196,85 @@ export class AgentOrchestrator {
     const { channelId, targetThreadTs, userId, query, history, progressMsgTs } = params;
 
     const intent = classifyIntent(query);
+    const techMode = isTechRequested(query);
 
-    // XỬ LÝ INTENT: XEM DANH SÁCH PROJECT PLANE
+    // 1. XEM DANH SÁCH PROJECT PLANE
     if (intent === "LIST_PROJECTS") {
       await this.handleListProjects(channelId, targetThreadTs, progressMsgTs);
       return;
     }
 
-    // XỬ LÝ INTENT: GÁN DEFAULT PROJECT CHO CHANNEL
+    // 2. GÁN DEFAULT PROJECT CHO CHANNEL
     if (intent === "SET_PROJECT") {
       await this.handleSetProject(channelId, targetThreadTs, query, progressMsgTs);
       return;
     }
 
-    // XỬ LÝ INTENT: TẠO TASK TRÊN PLANE TỪ THREAD
+    // 3. AUDIT SRS VỚI CODE VÀ BÁO CÁO
+    if (intent === "AUDIT_SRS_CODE") {
+      await this.handleAuditSrsCode(channelId, targetThreadTs, query, progressMsgTs);
+      return;
+    }
+
+    // 4. TẠO TASK NHANH TRÊN PLANE (TỪ TIN NHẮN ĐƠN HOẶC THREAD)
     if (intent === "CREATE_TASK") {
       await this.handleCreateTaskFromThread(channelId, targetThreadTs, userId, progressMsgTs, query);
       return;
     }
 
-    // XỬ LÝ INTENT: TRA CỨU BUG TRÊN PLANE
+    // 5. TRA CỨU BUG/TASK TRÊN PLANE
     if (intent === "SEARCH_PLANE" || intent === "SEARCH_CLICKUP") {
       await this.handleSearchPlane(channelId, targetThreadTs, query, progressMsgTs);
       return;
     }
 
-    // 2. Tra cứu RAG trong SRS
-    await this.slack.updateMessage(
-      channelId,
-      progressMsgTs,
-      "⏳ Đang tra cứu tài liệu SRS...",
-      {
-        blocks: createProgressBlock(2, 3, "Đang đối chiếu tài liệu SRS & lịch sử hội thoại..."),
-      }
-    );
+    // 6. Tra cứu tài liệu SRS + Logic hệ thống (ngầm hoặc chi tiết tùy techMode)
+    // Nếu đang ở trong thread và câu hỏi ngắn (ví dụ: "check code xem ở đâu?"), kết hợp câu hỏi trước đó trong thread để tìm đúng phân hệ
+    const prevUserText =
+      history && history.length > 0
+        ? history
+            .filter((m: any) => !m.bot_id)
+            .slice(-2)
+            .map((m: any) => (m.text || "").replace(/<@[A-Z0-9]+>/g, "").trim())
+            .join(" ")
+        : "";
+    const baseLookupQuery = prevUserText ? `${prevUserText} ${query}` : query;
 
-    const srsResults = await this.srsSearch.search(query, 4);
-    let srsContext = "";
+    let planeTaskContext = "";
+    let planeEnrichedTerms = "";
+    if (this.plane) {
+      const resolved = await this.plane.resolveIssueReferencesFromText(baseLookupQuery);
+      planeTaskContext = resolved.planeContext;
+      planeEnrichedTerms = resolved.enrichedTerms;
+    }
+
+    const lookupQuery = `${baseLookupQuery} ${planeEnrichedTerms}`.trim();
+
+    const srsResults = await this.srsSearch.search(lookupQuery, 6);
+    let srsContext = planeTaskContext;
     if (srsResults.length > 0) {
-      srsContext = "\n\n=== TÀI LIỆU SRS THAM CHIẾU TỪ HỆ THỐNG ===\n";
+      srsContext += "\n\n=== TÀI LIỆU SRS THAM CHIẾU ===\n";
       srsResults.forEach((r, idx) => {
         srsContext += `\n[Tài liệu ${idx + 1}: ${r.docId} | Đề mục: ${r.heading}]\n${r.content}\n`;
       });
-    } else {
-      srsContext = "\n\n[Thông báo: Không tìm thấy tài liệu SRS tương ứng trong cơ sở dữ liệu]";
     }
 
-    // 3. Chọn System Instruction theo Intent & Chủ động tải mã nguồn
+    // Luôn nạp ngữ cảnh logic hệ thống để câu trả lời chính xác 100%,
+    // nhưng chỉ nạp mã nguồn/tên file khi techMode === true
+    const codeContext = await getSmartCodeContext(lookupQuery, this.github, {
+      allowTech: techMode,
+    });
+
     let systemInstruction = SYSTEM_INSTRUCTION_DEFAULT;
-    if (intent === "BA") systemInstruction = SYSTEM_INSTRUCTION_BA;
-    if (intent === "QA") systemInstruction = SYSTEM_INSTRUCTION_QA;
-
-    let codeContext = "";
-    if (this.github) {
-      // Chủ động kiểm tra và pre-fetch mã nguồn nếu có đường dẫn file hoặc thông báo lỗi
-      codeContext = await getSmartCodeContext(query, this.github);
-    }
-
-    if (intent === "CODE_DEV" || codeContext) {
-      if (!this.github) {
-        await this.slack.updateMessage(
-          channelId,
-          progressMsgTs,
-          "⚠️ Tính năng tra cứu mã nguồn yêu cầu cấu hình `GITHUB_TOKEN`. Bạn vui lòng cấu hình secret: `npx wrangler secret put GITHUB_TOKEN`."
-        );
-        return;
-      }
+    if (intent === "BA") {
+      systemInstruction = SYSTEM_INSTRUCTION_BA;
+    } else if (intent === "QA") {
+      systemInstruction = SYSTEM_INSTRUCTION_QA;
+    } else if (techMode) {
       systemInstruction = SYSTEM_INSTRUCTION_DEV;
-
-      if (codeContext) {
-        await this.slack.updateMessage(
-          channelId,
-          progressMsgTs,
-          "⏳ [Code Agent] Đã nạp trực tiếp mã nguồn backend liên quan, đang phân tích logic...",
-          {
-            blocks: createProgressBlock(2, 3, "Đã đọc trực tiếp mã nguồn backend, đang mổ xẻ nguyên nhân..."),
-          }
-        );
-      }
     }
 
-    // 4. Xây dựng nội dung gửi tới AI
     const contents: GeminiContent[] = [];
-
-    // Nạp lịch sử hội thoại gần nhất nếu có
     if (history && history.length > 0) {
       for (const msg of history.slice(-6)) {
         const role = msg.bot_id ? "model" : "user";
@@ -298,16 +290,17 @@ export class AgentOrchestrator {
       parts: [{ text: `${query}\n\n${srsContext}${codeContext}` }],
     });
 
-    // 5. Khởi tạo AI Client: Cloudflare Workers AI (mặc định) hoặc Gemini
     const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
-    const aiClient = useWorkersAi && this.env.AI
-      ? new WorkersAiClient(this.env)
-      : new GeminiClient(this.env);
+    const aiClient =
+      useWorkersAi && this.env.AI ? new WorkersAiClient(this.env) : new GeminiClient(this.env);
 
-    // Nếu đã có codeContext nạp sẵn, không cần dùng tool gọi lại để tránh timeout 30s của Workers
-    const tools = codeContext ? undefined : (this.github ? [{ functionDeclarations: CODE_TOOLS }] : undefined);
-    let responseText = "";
-    const maxTurns = codeContext ? 1 : 2; // Tối đa 2 turns để không bao giờ vượt quá 30s Cloudflare
+    // Chỉ bật công cụ tìm kiếm code trực tiếp khi người dùng yêu cầu "check code" (techMode) và chưa có codeContext
+    const tools =
+      techMode && !codeContext && this.github
+        ? [{ functionDeclarations: CODE_TOOLS }]
+        : undefined;
+    let rawResponseText = "";
+    const maxTurns = tools ? 2 : 1;
     let currentTurn = 0;
 
     while (currentTurn < maxTurns) {
@@ -317,9 +310,7 @@ export class AgentOrchestrator {
 
       const aiResponse = await aiClient.generateContent({
         contents,
-        systemInstruction: isFinalTurn
-          ? `${systemInstruction}\n\nLƯU Ý: Đây là lượt trả lời chính thức cuối cùng. Bạn hãy dựa trên tất cả tài liệu SRS và các đoạn mã nguồn đã được cung cấp để giải thích tường tận nguyên nhân gốc rễ, trích dẫn file code và đưa ra giải pháp rõ ràng bằng tiếng Việt theo đúng cấu trúc 3 phần. TUYỆT ĐỐI KHÔNG gọi thêm tool.`
-          : systemInstruction,
+        systemInstruction,
         tools: activeTools,
         temperature: 0.2,
       });
@@ -336,27 +327,11 @@ export class AgentOrchestrator {
             if (call.name === "search_codebase") {
               const repo = call.args.repo || "backend";
               const q = call.args.query || "";
-              await this.slack.updateMessage(
-                channelId,
-                progressMsgTs,
-                `⏳ [Code Agent] Đang tìm kiếm "${q}" trong repo ${repo}...`,
-                {
-                  blocks: createProgressBlock(2, 3, `Đang tìm "${q}" trong repo ${repo}...`),
-                }
-              );
               const searchRes = await this.github.searchCode(repo, q);
               toolResult = JSON.stringify(searchRes);
             } else if (call.name === "read_code_file") {
               const repo = call.args.repo || "backend";
               const filePath = call.args.filePath || "";
-              await this.slack.updateMessage(
-                channelId,
-                progressMsgTs,
-                `⏳ [Code Agent] Đang đọc file ${filePath} (${repo})...`,
-                {
-                  blocks: createProgressBlock(2, 3, `Đang đọc ${filePath} (${repo})...`),
-                }
-              );
               const fileRes = await this.github.readFile(repo, filePath, {
                 startLine: call.args.startLine,
                 endLine: call.args.endLine || (call.args.startLine ? call.args.startLine + 100 : 120),
@@ -371,7 +346,7 @@ export class AgentOrchestrator {
               toolResult = "Unknown function call";
             }
           } catch (toolErr: any) {
-            toolResult = `Lỗi thực thi tool ${call.name}: ${toolErr.message || String(toolErr)}`;
+            toolResult = `Error: ${toolErr.message || String(toolErr)}`;
           }
 
           contents.push({
@@ -387,25 +362,19 @@ export class AgentOrchestrator {
           });
         }
       } else {
-        responseText = aiResponse.text;
+        rawResponseText = aiResponse.text;
         break;
       }
     }
 
-    // 6. Kiểm tra xem có bảng Markdown cần xuất Excel không
+    // Lọc hậu xử lý để đảm bảo ngắn gọn & khử 100% thuật ngữ tech khi ở chế độ Business
+    const responseText = sanitizeAgentResponse(rawResponseText, techMode);
+
+    // Kiểm tra xuất Excel nếu là BA / QA và có bảng Markdown
     const tables = parseAllMarkdownTables(responseText);
     let excelData: any = null;
 
-    if (tables.length > 0) {
-      await this.slack.updateMessage(
-        channelId,
-        progressMsgTs,
-        "📊 Đang sinh file Excel kịch bản...",
-        {
-          blocks: createProgressBlock(3, 3, "Đang định dạng bảng tính Excel chuyên nghiệp..."),
-        }
-      );
-
+    if (tables.length > 0 && (intent === "BA" || intent === "QA")) {
       try {
         excelData = await generateExcelFromTables(tables, query);
       } catch (excelErr) {
@@ -413,7 +382,6 @@ export class AgentOrchestrator {
       }
     }
 
-    // 7. Cập nhật câu trả lời chính thức bằng Block Kit
     const answerBlocks = createAnswerBlocks(responseText, {
       hasExcel: !!excelData,
       excelFileName: excelData?.filename,
@@ -425,32 +393,47 @@ export class AgentOrchestrator {
       blocks: answerBlocks,
     });
 
-    // 8. Nếu có file Excel, upload trực tiếp lên Slack
     if (excelData) {
       try {
         await this.slack.uploadFileV2(
           channelId,
           excelData.buffer,
           excelData.filename,
-          excelData.isUsecase ? "Danh sách UseCase (Sinh tự động)" : "Kịch bản UAT (Sinh tự động)",
-          "📊 Tôi đã tạo sẵn file Excel này theo định dạng chuẩn để bạn tải về trực tiếp:",
+          excelData.isUsecase ? "Danh sách UseCase" : "Kịch bản UAT",
+          `📊 File Excel đính kèm (${excelData.filename}):`,
           targetThreadTs
         );
 
-        // Tùy chọn: Lưu backup vào Cloudflare R2 nếu có binding
         if (this.env.R2) {
           const r2Key = `exports/${Date.now()}_${excelData.filename}`;
           await this.env.R2.put(r2Key, excelData.buffer);
         }
       } catch (uploadErr) {
-        console.error("Lỗi khi upload file Excel lên Slack:", uploadErr);
+        console.error("Lỗi upload file Excel:", uploadErr);
       }
     }
   }
 
+  private async handleAuditSrsCode(
+    channelId: string,
+    _threadTs: string,
+    query: string,
+    progressMsgTs: string
+  ): Promise<void> {
+    const report = await runSrsCodeAudit({
+      query,
+      srsSearch: this.srsSearch,
+      github: this.github,
+    });
+
+    await this.slack.updateMessage(channelId, progressMsgTs, report.markdownSummary, {
+      blocks: report.slackBlocks,
+    });
+  }
+
   private async handleListProjects(
     channelId: string,
-    threadTs: string,
+    _threadTs: string,
     progressMsgTs: string
   ): Promise<void> {
     const currentChannelProj = await getChannelDefaultProject(channelId, this.env);
@@ -462,7 +445,7 @@ export class AgentOrchestrator {
 
   private async handleSetProject(
     channelId: string,
-    threadTs: string,
+    _threadTs: string,
     query: string,
     progressMsgTs: string
   ): Promise<void> {
@@ -479,7 +462,7 @@ export class AgentOrchestrator {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        "⚠️ Vui lòng cung cấp mã hoặc tên Project bạn muốn gán.\nVí dụ: `@bot set project CRM` hoặc `@bot set project MVLGO`."
+        "⚠️ Bạn vui lòng nhập mã Project cần gán (ví dụ: `@bot set project CRM` hoặc `@bot set project MVLCTV`)."
       );
       return;
     }
@@ -489,7 +472,7 @@ export class AgentOrchestrator {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        `⚠️ Không tìm thấy project nào khớp với từ khóa *"${parts}"*.\nHãy gõ \`@bot projects\` để xem danh sách project hợp lệ.`
+        `⚠️ Không tìm thấy project *"${parts}"*. Gõ \`@bot projects\` để xem danh sách hợp lệ nhé.`
       );
       return;
     }
@@ -497,7 +480,7 @@ export class AgentOrchestrator {
     await this.slack.updateMessage(
       channelId,
       progressMsgTs,
-      `✅ Đã đặt project mặc định cho kênh này thành *${matchedProj.name}* (\`${matchedProj.identifier}\`).\nTừ bây giờ mọi bug/task tạo trong kênh này sẽ mặc định được tạo trên project này!`
+      `✅ Đã đặt project mặc định của kênh thành *${matchedProj.name}* (\`${matchedProj.identifier}\`).`
     );
   }
 
@@ -517,19 +500,30 @@ export class AgentOrchestrator {
       return;
     }
 
-    // 1. Lấy toàn bộ tin nhắn trong thread
-    const messages = await this.slack.getConversationReplies(channelId, threadTs);
-    if (!messages || messages.length === 0) {
+    // 1. Lấy tin nhắn từ thread (hoặc tạo nhanh trực tiếp từ câu lệnh đơn lẻ nếu không ở trong thread)
+    let messages: any[] = [];
+    if (threadTs) {
+      try {
+        messages = (await this.slack.getConversationReplies(channelId, threadTs)) || [];
+      } catch (e) {
+        console.warn("Could not fetch replies, using direct commandQuery:", e);
+      }
+    }
+
+    if (messages.length === 0 && commandQuery) {
+      messages = [{ user: slackUserId, text: commandQuery, ts: threadTs || `${Date.now()}` }];
+    }
+
+    if (messages.length === 0) {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        "⚠️ Không tìm thấy nội dung tin nhắn trong thread này để tạo task."
+        "⚠️ Bạn vui lòng nhập mô tả công việc/lỗi hoặc tag mình trong thread cần tạo task nhé!"
       );
       return;
     }
 
-    // 2. Xác định dự án mục tiêu (Dynamic Project Resolution)
-    // Chỉ đọc các tin nhắn từ người dùng (loại bỏ tin nhắn của bot để tránh match nhầm ví dụ)
+    // 2. Xác định dự án mục tiêu
     const userMessagesText = messages
       .filter((m) => !m.bot_id && m.subtype !== "bot_message")
       .map((m) => m.text || "")
@@ -544,7 +538,19 @@ export class AgentOrchestrator {
     const projectId = targetProject.id;
     const projectIdentifier = targetProject.identifier;
 
-    // 3. Nhận diện người tạo / assignees trên Plane cho dự án này
+    // 3. Trích xuất nội dung Task / Bug
+    const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
+    const aiClient =
+      useWorkersAi && this.env.AI ? new WorkersAiClient(this.env) : new GeminiClient(this.env);
+
+    const taskJson = await extractTaskFromThread({
+      messages,
+      threadTs,
+      query: commandQuery || "",
+      aiClient,
+    });
+
+    // 4. Phân giải người phụ trách (Assignees)
     const userMatch = await resolvePlaneUserId(
       slackUserId,
       this.slack,
@@ -553,7 +559,6 @@ export class AgentOrchestrator {
       projectId
     );
 
-    // Quét toàn bộ mentions trong thread để phát hiện người được giao việc / xử lý lỗi
     const mentionRegex = /<@([A-Z0-9]+)>/g;
     const candidateSlackUserIds = new Set<string>();
 
@@ -571,7 +576,6 @@ export class AgentOrchestrator {
 
     const resolvedAssignees: { id: string; name: string }[] = [];
 
-    // Ưu tiên resolve các user được tag trong thread
     for (const mSlackId of candidateSlackUserIds) {
       const resolved = await resolvePlaneUserId(
         mSlackId,
@@ -585,42 +589,26 @@ export class AgentOrchestrator {
       }
     }
 
-    // Nếu không có ai được tag hoặc không map được ai từ tag, gán cho người yêu cầu (userMatch)
+    // Nếu người dùng gõ tên/handle trực tiếp (vd: "giao @ducpm", "cho phuongkt")
+    if (resolvedAssignees.length === 0 && taskJson.explicitAssignee) {
+      const explicitKey = taskJson.explicitAssignee.toLowerCase().replace(/^@/, "").trim();
+      const staticId = INITIAL_SLACK_TO_PLANE_USERS[explicitKey];
+      if (staticId) {
+        resolvedAssignees.push({ id: staticId, name: taskJson.explicitAssignee });
+      }
+    }
+
     if (resolvedAssignees.length === 0 && userMatch.id) {
       resolvedAssignees.push({ id: userMatch.id, name: userMatch.name });
     }
 
-    // Fallback: nếu người yêu cầu cũng chưa map được, thử fallback người gửi tin nhắn đầu tiên của thread
-    if (resolvedAssignees.length === 0 && messages[0]?.user && messages[0].user !== slackUserId) {
-      const reporterMatch = await resolvePlaneUserId(
-        messages[0].user,
-        this.slack,
-        this.env,
-        this.plane,
-        projectId
-      );
-      if (reporterMatch.id) {
-        resolvedAssignees.push({ id: reporterMatch.id, name: reporterMatch.name });
-      }
-    }
-
     const assigneeIds = resolvedAssignees.map((a) => a.id);
-    const assigneeDisplayNames = resolvedAssignees.map((a) => a.name).filter(Boolean).join(", ");
+    const assigneeDisplayNames = resolvedAssignees
+      .map((a) => a.name)
+      .filter(Boolean)
+      .join(", ");
 
-    // 4. Trích xuất nội dung Bug Report bằng AI + Heuristic Fallback
-    const useWorkersAi = this.env.AI_PROVIDER === "cloudflare" || !this.env.GEMINI_API_KEY;
-    const aiClient = useWorkersAi && this.env.AI
-      ? new WorkersAiClient(this.env)
-      : new GeminiClient(this.env);
-
-    const taskJson = await extractTaskFromThread({
-      messages,
-      threadTs,
-      query: commandQuery || "",
-      aiClient,
-    });
-
-    // 5. Kiểm tra xem có bug nào bị trùng không (Smart Duplicate Check trên Plane)
+    // 5. Kiểm tra trùng lặp trên Plane
     const duplicateCheck = await checkDuplicatePlaneIssues(
       this.plane,
       projectId,
@@ -630,11 +618,13 @@ export class AgentOrchestrator {
     let duplicateWarning = "";
     if (duplicateCheck.hasDuplicate) {
       const dup = duplicateCheck.duplicateIssues[0];
-      const dupDisplay = dup.sequenceId ? `${projectIdentifier}-${dup.sequenceId}` : dup.id.slice(0, 8);
-      duplicateWarning = `\n> ⚠️ *Lưu ý trùng lặp:* Phát hiện task tương tự trên Plane: <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
+      const dupDisplay = dup.sequenceId
+        ? `${projectIdentifier}-${dup.sequenceId}`
+        : dup.id.slice(0, 8);
+      duplicateWarning = `⚠️ *Task tương tự đã có:* <${dup.url}|[${dupDisplay}] ${dup.name}> (${dup.state})`;
     }
 
-    // 6. Thu thập file đính kèm từ Slack
+    // 6. Thu thập file đính kèm
     const evidenceFiles: { name: string; url: string }[] = [];
     for (const msg of messages) {
       if (msg.files && Array.isArray(msg.files)) {
@@ -649,22 +639,24 @@ export class AgentOrchestrator {
       }
     }
 
-    // 7. Tạo mô tả task chuẩn theo HTML cho Plane
-    const slackThreadUrl = `https://slack.com/app_redirect?channel=${channelId}&thread_ts=${threadTs}`;
+    // 7. Tạo mô tả HTML ngắn gọn trên Plane
+    const slackThreadUrl = threadTs
+      ? `https://slack.com/app_redirect?channel=${channelId}&thread_ts=${threadTs}`
+      : undefined;
     const descriptionHtml = buildPlaneBugHtmlDescription({
+      taskType: taskJson.taskType,
       moduleName: taskJson.moduleName,
       environment: "Staging",
-      deviceInfo: "Chrome / Web",
+      deviceInfo: "Web / App",
       severity: taskJson.severity,
       stepsToReproduce: taskJson.stepsToReproduce || [],
       actualBehavior: taskJson.actualBehavior,
       expectedBehavior: taskJson.expectedBehavior,
       slackThreadUrl,
-      slackMetadata: `channel_id=${channelId} thread_ts=${threadTs} project=${projectIdentifier}`,
       evidenceFiles,
     });
 
-    // 8. Tạo task trên Plane (tự động truy vấn state mặc định / backlog hợp lệ của chính dự án đó)
+    // 8. Lấy default state & tạo issue trên Plane
     let stateId: string | undefined = undefined;
     try {
       const states = await this.plane.getProjectStates(projectId);
@@ -677,7 +669,7 @@ export class AgentOrchestrator {
         stateId = defaultState.id;
       }
     } catch (stateErr) {
-      console.warn("Lỗi lấy default state cho project:", stateErr);
+      console.warn("Lỗi lấy default state:", stateErr);
     }
 
     const createdIssue = await this.plane.createIssue(projectId, {
@@ -688,19 +680,15 @@ export class AgentOrchestrator {
       assignees: assigneeIds.length > 0 ? assigneeIds : undefined,
     });
 
-    // 9. Nếu có file đính kèm từ Slack, thêm comment vào Plane issue
     if (evidenceFiles.length > 0) {
       try {
-        const commentHtml = `<p>📎 <strong>Tệp bằng chứng từ Slack:</strong></p><ul>${evidenceFiles
+        const commentHtml = `<p>📎 <strong>Đính kèm từ Slack:</strong></p><ul>${evidenceFiles
           .map((f) => `<li><a href="${f.url}" target="_blank">${f.name}</a></li>`)
           .join("")}</ul>`;
         await this.plane.addIssueComment(projectId, createdIssue.id, commentHtml);
-      } catch (comErr) {
-        console.warn("Lỗi thêm comment bằng chứng lên Plane:", comErr);
-      }
+      } catch {}
     }
 
-    // 10. Cập nhật thông báo lên Slack
     const issueUrl = this.plane.getIssueWebUrl(
       projectId,
       createdIssue.id,
@@ -717,27 +705,28 @@ export class AgentOrchestrator {
       name: createdIssue.name,
       url: issueUrl,
       assigneeName: assigneeDisplayNames || userMatch.name || "Chưa gán",
+      priority: taskJson.severity,
       status: "Backlog",
       systemName: "Plane",
-      projectName: `${targetProject.name} (${targetProject.identifier})`,
+      projectName: `${targetProject.name} (\`${targetProject.identifier}\`)`,
       attachmentsCount: evidenceFiles.length,
     });
 
     if (duplicateWarning) {
       cardBlocks.splice(1, 0, {
-        type: "section",
-        text: { type: "mrkdwn", text: duplicateWarning },
+        type: "context",
+        elements: [{ type: "mrkdwn", text: duplicateWarning }],
       });
     }
 
-    await this.slack.updateMessage(channelId, progressMsgTs, "Đã tạo task Plane thành công!", {
+    await this.slack.updateMessage(channelId, progressMsgTs, `✅ Đã tạo task [${displayId}]`, {
       blocks: cardBlocks,
     });
   }
 
   private async handleSearchPlane(
     channelId: string,
-    threadTs: string,
+    _threadTs: string,
     query: string,
     progressMsgTs: string
   ): Promise<void> {
@@ -750,21 +739,33 @@ export class AgentOrchestrator {
       return;
     }
 
-    const projectId = this.env.PLANE_DEFAULT_PROJECT_ID || "e92f7ba8-0db9-487f-a21c-13712d226eb8";
-    const projectIdentifier = "MVLCTV";
-    const issues = await this.plane.searchIssues(projectId, query, true);
+    const cleanKeyword = query
+      .replace(/^\/?(?:bugs?|tasks?|plane[-_]bugs?|plane[-_]tasks?)\s*/i, "")
+      .replace(/^(?:tìm|tra cứu|xem|danh sách)\s+(?:bug|task|lỗi)\s*/i, "")
+      .trim();
+
+    const targetProject = await resolvePlaneProject({
+      text: query,
+      channelId,
+      env: this.env,
+      planeClient: this.plane,
+    });
+    const projectId = targetProject.id;
+    const projectIdentifier = targetProject.identifier;
+
+    const issues = await this.plane.searchIssues(projectId, cleanKeyword, false);
 
     if (issues.length === 0) {
       await this.slack.updateMessage(
         channelId,
         progressMsgTs,
-        `🔍 Không tìm thấy bug/task nào liên quan đến từ khóa *"${query}"* trên Plane.`
+        `🔍 Không tìm thấy task/bug nào khớp với *"${cleanKeyword || query}"* trên dự án \`${projectIdentifier}\`.`
       );
       return;
     }
 
-    let reply = `🔍 *Tìm thấy ${issues.length} task/bug liên quan trên Plane:*\n\n`;
-    issues.slice(0, 8).forEach((issue) => {
+    let reply = `🔍 *Kết quả trên Plane (${issues.length} task - \`${projectIdentifier}\`):*\n`;
+    issues.slice(0, 6).forEach((issue) => {
       const issueUrl = this.plane!.getIssueWebUrl(
         projectId,
         issue.id,
@@ -775,9 +776,9 @@ export class AgentOrchestrator {
         ? `${projectIdentifier}-${issue.sequence_id}`
         : issue.id.slice(0, 8);
       const stateName = issue.state_detail?.name || "Open";
-      reply += `- <${issueUrl}|[${displayId}]> *${issue.name}* (Trạng thái: \`${stateName}\`)\n`;
+      reply += `• <${issueUrl}|[${displayId}]> *${issue.name}* — \`${stateName}\`\n`;
     });
 
-    await this.slack.updateMessage(channelId, progressMsgTs, reply);
+    await this.slack.updateMessage(channelId, progressMsgTs, reply.trim());
   }
 }

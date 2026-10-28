@@ -1,167 +1,72 @@
-# 🤖 MVL Assistant Slackbot (Cloudflare Edge Edition)
+# 🤖 MVL Assistant Slackbot (Business-First AI & SRS-Code Audit Edition)
 
-> Trợ lý AI thế hệ mới trên nền tảng **Cloudflare Serverless & Edge** (TypeScript, Hono, Vectorize, D1, KV, R2, AI Gateway, Gemini 2.5) hỗ trợ BA, QA, Dev và Quản lý dự án MaiVietLand.
-
----
-
-## 🌟 Điểm nổi bật & Tính năng thông minh
-
-1. **Kiến trúc Serverless Edge (Cloudflare Workers):**
-   - Không cần duy trì máy chủ VPS hay tiến trình Python socket mode thường trực.
-   - Phản hồi webhook cho Slack trong vòng **< 200ms** (loại bỏ hoàn toàn lỗi Slack 3-second timeout và retry).
-   - Tự động scale toàn cầu, chi phí duy trì gần như bằng 0.
-
-2. **Hệ thống Tri thức Lai (Hybrid RAG):**
-   - Kết hợp **Cloudflare Vectorize** (Semantic Search) + **Cloudflare D1** (Full-text FTS5).
-   - Tra cứu chính xác từng đề mục tài liệu SRS, trích dẫn rõ ràng nguồn tài liệu `[Nguồn: features/booking/brd.md]`.
-   - Cơ chế tự động đồng bộ tài liệu từ GitHub repo `srs` qua API `/sync/github`.
-
-3. **Điều phối Đa Tác tử (Multi-Agent Routing):**
-   - **SRS Q&A Agent:** Trả lời trực diện, siêu ngắn gọn, trung thực 100% với tài liệu.
-   - **Senior BA Agent:** Phân tích luồng nghiệp vụ, vẽ sơ đồ Mermaid, sinh 10-14 Use Case chuẩn Karl Wiegers (Tổng quan + Chi tiết đồng bộ 1-1).
-   - **QA Test Lead Agent:** Thiết kế ma trận kiểm thử, sinh 15-20 kịch bản UAT phân nhóm Positive, Negative, Permissions, UI/UX, Boundary với dữ liệu test cụ thể.
-   - **ClickUp Smart Triage Agent:** Tự động đọc thread thảo luận lỗi trên Slack -> trích xuất bước tái hiện, môi trường, thiết bị -> phát hiện trùng lặp bug trên ClickUp -> tạo task chuẩn template MVL và tự động đính kèm ảnh/video.
-   - **Staff Dev / Code Agent (Mới):** Tự động đọc mã nguồn thực tế từ các GitHub repo (`backend`, `web`, `mobile`, `chat`, `app-sale`) qua GitHub API bằng PAT. Hỗ trợ đối chiếu độ lệch (Drift Detection) giữa tài liệu SRS và Code thật, tra cứu Model/Serializer/Endpoint URL.
-
-4. **Đọc & Phân tích Codebase Trực tiếp từ GitHub (PAT Integration):**
-   - Không cần mount mã nguồn gigabytes vào Worker: Worker tự động gọi GitHub API on-demand để search code và đọc file cụ thể theo branch.
-   - Hỗ trợ tra cứu nhanh: `search_codebase`, `read_code_file`, `list_repository_files`.
-
-5. **Sinh & Định dạng Bảng tính Excel trên Bộ nhớ (ExcelJS):**
-   - Sinh file Excel UAT / Use Case đúng định dạng màu sắc header, border, căn lề và công thức tính ID tự động `=IF(G2="","",COUNTA($G$2:G2))` mà không cần ghi ra ổ cứng.
-   - Upload trực tiếp lên Slack thread bằng Slack `files.uploadV2` và lưu trữ backup trên Cloudflare R2.
-
-6. **Trải nghiệm Slack Block Kit Tương tác:**
-   - Cập nhật tiến trình thời gian thực (`⏳ [1/3] Đang phân tích...`, `⏳ [Code Agent] Đang đọc file...`).
-   - Thẻ tương tác với các nút: `[📊 Tải Excel]`, `[🐛 Tạo Bug ClickUp]`, `[➕ Thêm Kịch bản Biên]`.
+> Trợ lý AI Nghiệp vụ & Điều phối Công việc dự án **MaiVietLand (MVL ERP & App Sale)** — hỗ trợ đồng thời trên **Cloudflare Edge Workers (TypeScript/Hono)** và **FastAPI / Slack Bolt (Python/Docker)**.
 
 ---
 
-## 🏗️ Cấu trúc Thư mục
+## 🌟 4 Trụ cột Kiến trúc Cốt lõi
 
-```
-slackbot/
-├── src/
-│   ├── index.ts               # Hono App, routing Webhook Slack, Slash commands, Interactions
-│   ├── config/
-│   │   └── env.ts             # Định nghĩa Interface Env & Cloudflare Bindings
-│   ├── slack/
-│   │   ├── verify.ts          # Xác thực chữ ký Slack bằng Web Crypto API HMAC-SHA256
-│   │   ├── client.ts          # Slack Web API Client (chat, files.uploadV2, reactions)
-│   │   ├── blocks.ts          # Slack Block Kit UI components
-│   │   └── user-mapping.ts    # Ánh xạ Slack User ID <-> ClickUp Member ID
-│   ├── clickup/
-│   │   ├── client.ts          # Native ClickUp REST API Client (fetch thuần)
-│   │   ├── duplicates.ts      # Kiểm tra và cảnh báo bug trùng lặp
-│   │   └── task-builder.ts    # Định dạng task chuẩn template MVL
-│   ├── rag/
-│   │   ├── chunker.ts         # Phân tách tài liệu Markdown theo đề mục H1/H2/H3
-│   │   ├── search.ts          # Hybrid RAG (Vectorize + D1)
-│   │   └── sync-webhook.ts    # Endpoint nạp và cập nhật tự động tài liệu SRS
-│   ├── ai/
-│   │   ├── gemini.ts          # Gemini 2.5 API Client (hỗ trợ Cloudflare AI Gateway)
-│   │   └── workers-ai.ts      # Workers AI embedding (@cf/baai/bge-m3) & Fallback LLM
-│   ├── excel/
-│   │   └── generator.ts       # Sinh file Excel UAT & Use Case in-memory bằng ExcelJS
-│   ├── agents/
-│   │   ├── router.ts          # Bộ phân loại ý định người dùng (Intent Classifier)
-│   │   ├── prompts.ts         # System prompts chuẩn hóa (BA, QA, Q&A)
-│   │   └── orchestrator.ts    # Bộ điều phối trung tâm toàn bộ vòng đời Agent
-│   └── utils/
-│       ├── markdown.ts        # Chuyển đổi Markdown sang Slack mrkdwn & trích xuất bảng
-│       └── slugify.ts         # Tiện ích chuyển đổi tiếng Việt không dấu
-├── scripts/
-│   └── sync-local-srs.ts      # Script đồng bộ tài liệu SRS từ local lên Cloudflare
-├── schema.sql                 # D1 Database Schema
-├── wrangler.jsonc             # Cấu hình Cloudflare Wrangler
-└── package.json
-```
+### 1. Hỏi đáp Nghiệp vụ Thân thiện (`Business-First`) vs Kiểm tra Kỹ thuật (`"check code"`)
+- **Mặc định Thuần Business (`allowTech = false`):**
+  - Agent tự động đối chiếu ngầm cả **Tài liệu SRS** (16,462+ chunks) VÀ **Logic Hệ thống thực tế từ Code** để hiểu chính xác 100% quy tắc vận hành.
+  - Phản hồi hoàn toàn bằng **ngôn ngữ nghiệp vụ thân thiện, gần gũi** cho Kế toán, Sale, Admin, BA, PO.
+  - **Guardrail Sanitizer (`sanitizeAgentResponse`)**: Tự động lọc bỏ 100% tên file (`.py`, `.ts`), tên hàm/class (`_attach_summary_line`, `create_from_pdcdt`, `SalesInvoice`...) và dịch toàn bộ trạng thái hệ thống sang tiếng Việt (*Nháp*, *Đã xác nhận*, *Đã duyệt*, *Đã thanh toán*).
+- **Chế độ Kỹ thuật (`"check code"`, `"xem code"`, `"hàm nào"`, `"file nào"`, `"/code"`):**
+  - Chỉ kích hoạt khi người dùng chủ động yêu cầu kiểm tra code (`isTechRequested(query) === true`).
+  - Trích dẫn chính xác đường dẫn file, khoảng dòng code, tên hàm/class và điều kiện xử lý.
 
----
+### 2. Template Phản hồi Siêu Ngắn Gọn, Đúng Ý Chính
+- **Hỏi đáp Nghiệp vụ (3–6 dòng):**
+  ```markdown
+  💡 *[Câu trả lời trực diện / Nguyên nhân cốt lõi trong 1-2 câu thân thiện]*
+  • *[Quy tắc / Chi tiết]:* [Giải thích ngắn gọn]
+  👉 *Cách xử lý:* [Các bước thao tác ngắn gọn trên màn hình]
+  ```
+- **Kiểm tra Code (`"check code"`):**
+  ```markdown
+  💡 *Tóm tắt:* [Nguyên nhân chính 1-2 câu]
+  💻 *Logic Code:* `[file_path:Lxx-Lyy]` (`hàm/class`) — [Điều kiện xử lý]
+  👉 *Hướng xử lý:* [Cách thao tác hoặc hướng sửa code]
+  ```
+- **Thẻ Tạo Task Plane:**
+  ```markdown
+  ✅ *Đã tạo task Plane:* <[URL]|[MÃ-123] [BUG/TASK] [Phân hệ] - Tiêu đề>
+  • *Dự án:* `MÃ` | *Ưu tiên:* `HIGH` | *Giao cho:* @user
+  ```
 
-## 🚀 Hướng dẫn Cài đặt & Triển khai
+### 3. Tạo Task Nhanh Trên Plane (1 Câu Lệnh Đơn hoặc Từ Thread)
+- Tạo trực tiếp chỉ bằng 1 tin nhắn (không bắt buộc phải nằm trong thread):
+  - `@bot tạo bug [CRM] Lỗi không lưu được SĐT khách hàng giao @ducpm`
+  - `@bot tạo task [MVLCTV] Bổ sung cột ngày đối chiếu trên hóa đơn bán ra giao @phuongkt`
+  - `/create-task [MVLGO] Lỗi 500 khi tạo đợt chi hoa hồng`
+- Tự động phân giải **9 dự án Plane** (`MVLCTV`, `MVL`, `MVLGO`, `MAIVIETLAN`, `CRM`, `DEVOPS`, `DSTAX`, `FETEAMS`, `GLINTECOWEBS`), gán đúng thành viên (`@ducpm`, `@phuongkt`, `@phamhung`, `@mainv`, `@troy`, `@vunguyen`...) và cảnh báo task trùng lặp.
 
-### 1. Chuẩn bị môi trường & Cài đặt dependencies
-```bash
-npm install
-```
-
-### 2. Cấu hình Cloudflare Resources (D1, KV, Vectorize, R2)
-Chạy các lệnh sau trên terminal để tạo tài nguyên Cloudflare:
-```bash
-# Tạo D1 Database
-npx wrangler d1 create mvl-srs-db
-# Chạy migration schema vào D1
-npx wrangler d1 execute mvl-srs-db --local --file=./schema.sql
-npx wrangler d1 execute mvl-srs-db --remote --file=./schema.sql
-
-# Tạo KV Namespace
-npx wrangler kv:namespace create SLACKBOT_KV
-
-# Tạo Vectorize Index
-npx wrangler vectorize create mvl-srs-vectors --dimensions=768 --metric=cosine
-
-# Tạo R2 Bucket
-npx wrangler r2 bucket create mvl-slackbot-artifacts
-```
-*(Cập nhật các ID trả về vào file `wrangler.jsonc`)*.
-
-### 3. Cấu hình Secrets trên Cloudflare
-```bash
-npx wrangler secret put SLACK_BOT_TOKEN        # xoxb-...
-npx wrangler secret put SLACK_SIGNING_SECRET   # Mã signing secret từ Slack App Settings
-npx wrangler secret put GEMINI_API_KEY         # Google Gemini API Key
-npx wrangler secret put GITHUB_TOKEN           # GitHub Personal Access Token (PAT) để đọc code
-npx wrangler secret put CLICKUP_API_TOKEN      # ClickUp API Key (pk_...)
-npx wrangler secret put GITHUB_WEBHOOK_SECRET  # Secret bảo vệ endpoint /sync/github
-```
-
-### 4. Chạy kiểm thử cục bộ (Local Dev)
-```bash
-npm run dev
-```
-Worker sẽ chạy tại `http://localhost:8787`. Bạn có thể dùng Cloudflare Tunnel (`cloudflared tunnel`) để expose ra internet cho Slack gọi vào.
-
-### 5. Triển khai lên Production (Deploy)
-```bash
-npm run deploy
-```
+### 4. Schedule Audit SRS với Code & Báo cáo Tự động
+- **Lập lịch tự động (Scheduled Cron):**
+  - Cloudflare Worker Cron Trigger (`0 1 * * 1-5` — 08:00 sáng Thứ 2 – Thứ 6) & FastAPI Background Scheduler (`periodic_audit_scheduler`).
+- **Kích hoạt tức thì (On-demand):**
+  - Gõ `/audit`, `@bot audit srs`, `@bot đối chiếu srs với code` hoặc gọi API `GET /audit/report`, `POST /audit/run`.
+- **Nội dung Báo cáo Audit:**
+  - Tổng hợp số lượng phân hệ khớp (`✅ MATCHED`) và lệch (`⚠️ DRIFT`), nêu rõ điểm chênh lệch giữa tài liệu SRS và Code thực tế kèm đề xuất đồng bộ và nút tạo nhanh Task trên Plane.
 
 ---
 
-## ⚙️ Cấu hình trên Slack App Dashboard (api.slack.com)
+## 🧪 Bộ Kiểm Thử 330 Input-Output Test Cases (Min 300+ Test Cases)
 
-1. **Event Subscriptions:**
-   - Bật **Enable Events**.
-   - Request URL: `https://<YOUR_WORKER_DOMAIN>/slack/events` (Slack sẽ tự động xác thực URL challenge).
-   - Subscribe to bot events: `app_mention`, `message.channels`, `message.groups`.
+Bộ dữ liệu kiểm thử chuẩn nằm tại [`tests/testcases_300_io.json`](tests/testcases_300_io.json) gồm **330 kịch bản Input-Output** chia làm 6 nhóm:
+1. **`BUSINESS_QA` (90 cases):** Hỏi đáp nghiệp vụ & xử lý lỗi thuần Business (kiểm tra 0% rò rỉ thuật ngữ code).
+2. **`TECH_CHECK_CODE` (65 cases):** Yêu cầu `"check code"`, `"xem code"`, `"/code"` (kiểm tra trích dẫn chính xác file & hàm).
+3. **`FAST_PLANE_TASK` (75 cases):** Tạo nhanh Bug/Task trên Plane qua 9 dự án & ánh xạ người phụ trách.
+4. **`SCHEDULED_AND_ONDEMAND_AUDIT` (40 cases):** Kiểm toán độ lệch SRS vs Code toàn hệ thống và theo từng phân hệ.
+5. **`BA_USECASE_AND_QA_TESTCASE` (30 cases):** Sinh bảng Use Case (BA) & Kịch bản UAT (QA) xuất Excel.
+6. **`PROJECT_SEARCH_AND_GUARDRAILS` (30 cases):** Tra cứu bug Plane, cấu hình project mặc định và kiểm thử bộ lọc Guardrail khử rò rỉ code.
 
-2. **Interactivity & Shortcuts:**
-   - Bật **Interactivity**.
-   - Request URL: `https://<YOUR_WORKER_DOMAIN>/slack/interactions`.
-
-3. **Slash Commands:**
-   - Tạo các lệnh trỏ về Request URL: `https://<YOUR_WORKER_DOMAIN>/slack/commands`
-     - `/usecase [yêu cầu nghiệp vụ]`
-     - `/testcase [yêu cầu kiểm thử]`
-     - `/create-task`
-     - `/bugs [từ khóa]`
-
-4. **OAuth & Permissions (Bot Scopes):**
-   - `app_mentions:read`
-   - `chat:write`
-   - `channels:history`, `groups:history`
-   - `files:write`, `files:read`
-   - `reactions:write`
-   - `users:read`
-
----
-
-## 🔄 Đồng bộ Tài liệu SRS (Sync Pipeline)
-
-Để nạp tài liệu SRS vào Vectorize & D1:
+### Chạy kiểm thử tự động:
 ```bash
-# Nạp từ thư mục SRS cục bộ vào Worker
-npx tsx scripts/sync-local-srs.ts https://<YOUR_WORKER_DOMAIN>/sync/github <GITHUB_WEBHOOK_SECRET>
+# 1. Kiểm thử TypeScript Engine (330/330 cases) + Typecheck
+npm test
+npm run build
+
+# 2. Kiểm thử Python Engine + SQLite SRS FTS Database (330/330 cases)
+npm run test:py
 ```
-Hoặc cấu hình GitHub Actions trong repo `srs`: mỗi khi có push vào nhánh `main`, action sẽ tự động gửi nội dung các file `.md` mới/sửa qua API `/sync/github`.

@@ -1,7 +1,8 @@
 export function buildPlaneBugHtmlDescription(params: {
+  taskType?: "bug" | "task";
   moduleName: string;
-  environment: string;
-  deviceInfo: string;
+  environment?: string;
+  deviceInfo?: string;
   severity: string;
   stepsToReproduce: string[];
   actualBehavior: string;
@@ -10,11 +11,13 @@ export function buildPlaneBugHtmlDescription(params: {
   slackMetadata?: string;
   evidenceFiles?: { name: string; url: string }[];
 }): string {
-  const stepsItems = params.stepsToReproduce && params.stepsToReproduce.length > 0
-    ? params.stepsToReproduce.map((step) => `<li>${escapeHtml(step)}</li>`).join("")
-    : "<li>Đăng nhập hệ thống</li><li>Thao tác theo mô tả trong Slack thread</li>";
+  const isTask = params.taskType === "task";
+  const stepsItems =
+    params.stepsToReproduce && params.stepsToReproduce.length > 0
+      ? params.stepsToReproduce.map((step) => `<li>${escapeHtml(step)}</li>`).join("")
+      : "<li>Thực hiện theo nội dung yêu cầu từ Slack</li>";
 
-  let evidenceHtml = "<p><em>Không có hình ảnh đính kèm từ Slack.</em></p>";
+  let evidenceHtml = "";
   if (params.evidenceFiles && params.evidenceFiles.length > 0) {
     const fileItems = params.evidenceFiles
       .map(
@@ -22,48 +25,37 @@ export function buildPlaneBugHtmlDescription(params: {
           `<li>📎 <a href="${escapeHtml(f.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(f.name)}</a></li>`
       )
       .join("");
-    evidenceHtml = `<ul>${fileItems}</ul>`;
+    evidenceHtml = `<p><strong>📸 Đính kèm:</strong></p><ul>${fileItems}</ul>`;
   }
 
   const threadLinkHtml = params.slackThreadUrl
-    ? `<p>🔗 <strong>Nguồn thảo luận trên Slack:</strong> <a href="${escapeHtml(params.slackThreadUrl)}" target="_blank" rel="noopener noreferrer">Mở thread</a></p>`
+    ? `<p>🔗 <a href="${escapeHtml(params.slackThreadUrl)}" target="_blank" rel="noopener noreferrer">Mở thảo luận trên Slack</a></p>`
     : "";
 
-  const metadataHtml = params.slackMetadata
-    ? `<p><code>${escapeHtml(params.slackMetadata)}</code></p>`
-    : "";
+  if (isTask) {
+    return `
+<p><strong>📌 Phân hệ:</strong> ${escapeHtml(params.moduleName || "Chung")} | <strong>Ưu tiên:</strong> ${escapeHtml((params.severity || "medium").toUpperCase())}</p>
+<h4>🎯 Nội dung yêu cầu</h4>
+<p>${escapeHtml(params.actualBehavior)}</p>
+<h4>📋 Chi tiết thực hiện</h4>
+<ol>${stepsItems}</ol>
+<h4>✅ Kết quả mong đợi</h4>
+<p>${escapeHtml(params.expectedBehavior)}</p>
+${evidenceHtml}
+${threadLinkHtml}
+`.trim();
+  }
 
   return `
-<h3>🐛 BUG: [${escapeHtml(params.moduleName || "Hệ thống")}]</h3>
-<blockquote>
-  <p>
-    • <strong>Môi trường:</strong> ${escapeHtml(params.environment || "Staging")}<br/>
-    • <strong>Thiết bị & Trình duyệt:</strong> ${escapeHtml(params.deviceInfo || "Chrome / Web")}<br/>
-    • <strong>Mức độ nghiêm trọng:</strong> ${escapeHtml(params.severity || "Major")}
-  </p>
-</blockquote>
-
-<h4>🔄 1. Các Bước Tái Hiện Lỗi (Steps to Reproduce)</h4>
-<ol>
-  ${stepsItems}
-</ol>
-
-<h4>❌ 2. Kết Quả Thực Tế (Actual Behavior)</h4>
-<ul>
-  <li>${escapeHtml(params.actualBehavior || "Lỗi phát sinh trong quá trình thao tác")}</li>
-</ul>
-
-<h4>🟢 3. Kết Quả Mong Muốn (Expected Behavior)</h4>
-<ul>
-  <li>${escapeHtml(params.expectedBehavior || "Hệ thống xử lý đúng quy tắc nghiệp vụ")}</li>
-</ul>
-
-<h4>📸 4. Hình Ảnh / Bằng Chứng (Evidence)</h4>
+<p><strong>🐛 Phân hệ:</strong> ${escapeHtml(params.moduleName || "Hệ thống")} | <strong>Môi trường:</strong> ${escapeHtml(params.environment || "Staging")} | <strong>Ưu tiên:</strong> ${escapeHtml((params.severity || "high").toUpperCase())}</p>
+<h4>🔄 Bước tái hiện</h4>
+<ol>${stepsItems}</ol>
+<h4>❌ Thực tế</h4>
+<p>${escapeHtml(params.actualBehavior || "Lỗi phát sinh khi thao tác")}</p>
+<h4>🟢 Mong đợi</h4>
+<p>${escapeHtml(params.expectedBehavior || "Xử lý đúng quy tắc nghiệp vụ")}</p>
 ${evidenceHtml}
-
-<hr/>
 ${threadLinkHtml}
-${metadataHtml}
 `.trim();
 }
 
