@@ -29,6 +29,7 @@ from plane_client import PlaneClient
 from excel_generator import parse_all_markdown_tables, create_excel_from_tables
 from user_mapping import extract_and_resolve_assignees
 from testcase_collector import TestcaseCollector
+from antigravity_engine import MVLAntigravityEngine
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +41,11 @@ rag_engine = SRSRagEngine()
 gemini_agent = GeminiAgent()
 plane_client = PlaneClient()
 testcase_collector = TestcaseCollector()
+agy_engine = MVLAntigravityEngine(
+    rag_engine=rag_engine,
+    plane_client=plane_client,
+    gemini_fallback=gemini_agent,
+)
 
 slack_bot_token = os.environ.get("SLACK_BOT_TOKEN", "")
 slack_app_token = os.environ.get("SLACK_APP_TOKEN", "")
@@ -171,14 +177,13 @@ async def process_query_and_reply(
         elif tech_mode and eff_type == "default":
             eff_type = "tech"
 
-        answer = gemini_agent.generate(
+        answer = await agy_engine.generate_answer(
             query=query,
             srs_context=full_context,
             history=history,
             instruction_type=eff_type,
             enriched_query=enriched_plane_terms,
         )
-        answer = sanitize_agent_response(answer, allow_tech=tech_mode)
 
         try:
             citations = [c.get("citation", "") for c in chunks] if chunks else []
@@ -888,8 +893,9 @@ async def health():
     return {
         "status": "ok",
         "service": "mvl-slack-agent",
-        "features": ["business-first-qa", "tech-check-code", "fast-plane-task", "scheduled-srs-code-audit"],
+        "features": ["business-first-qa", "tech-check-code", "fast-plane-task", "scheduled-srs-code-audit", "google-antigravity-sdk"],
         "gemini_primary_model": gemini_agent.primary_model,
+        "antigravity_sdk": agy_engine.get_sdk_info(),
         "rag_stats": stats,
         "plane_workspace": plane_client.workspace_slug,
         "testcase_stats": tc_stats,
@@ -962,7 +968,7 @@ async def test_query(request: Request):
     chunks = rag_engine.search(search_query, top_k=8, include_code=True)
     context = rag_engine.format_context(chunks, allow_tech=tech_mode)
     full_context = f"{plane_context}\n\n{context}".strip() if plane_context else context
-    answer = gemini_agent.generate(
+    answer = await agy_engine.generate_answer(
         query=query,
         srs_context=full_context,
         instruction_type=instruction_type,
@@ -976,6 +982,7 @@ async def test_query(request: Request):
         "plane_enriched": bool(plane_context),
         "chunks_found": len(chunks),
         "citations": [c["citation"] for c in chunks],
+        "antigravity_sdk": agy_engine.get_sdk_info(),
         "answer": answer,
     }
 

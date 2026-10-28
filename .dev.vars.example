@@ -1,0 +1,16 @@
+# Cloudflare Workers Local Development Environment Variables
+# Copy file này thành .dev.vars để dùng cho `wrangler dev`
+
+SLACK_BOT_TOKEN=xoxb-your-slack-bot-token
+SLACK_SIGNING_SECRET=your-slack-signing-secret
+GEMINI_API_KEY=your-google-gemini-api-key
+
+# GitHub Personal Access Token (PAT) có quyền repo để đọc code
+GITHUB_TOKEN=ghp_your_github_pat_token
+
+# ClickUp API Token (tùy chọn)
+CLICKUP_API_TOKEN=pk_your_clickup_token
+CLICKUP_DEFAULT_LIST_ID=901818745715
+
+# Secret bảo vệ endpoint /sync/github
+GITHUB_WEBHOOK_SECRET=your-custom-sync-secret

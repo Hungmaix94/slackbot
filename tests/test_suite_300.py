@@ -14,6 +14,7 @@ from gemini_agent import (
 )
 from rag_engine import SRSRagEngine
 from user_mapping import match_plane_member
+from antigravity_engine import MVLAntigravityEngine
 
 
 def run_python_330_test_suite():
@@ -23,6 +24,14 @@ def run_python_330_test_suite():
 
     rag = SRSRagEngine()
     agent = GeminiAgent(api_key="")  # Deterministic E2E evaluation with SRS FTS + Code Context
+    agy = MVLAntigravityEngine(rag_engine=rag, gemini_fallback=agent)
+    agy.api_key = "test-api-key-for-config-validation"
+    agy_cfg = agy.create_agent_config(allow_tech=False)
+    sdk_info = agy.get_sdk_info()
+    assert sdk_info.get("sdk_package") == "google-antigravity"
+    if sdk_info.get("sdk_available"):
+        assert agy_cfg is not None, "LocalAgentConfig must be instantiated when google-antigravity is installed"
+
     stats = rag.get_stats()
     assert stats.get("ready"), f"SRS FTS Database must be ready, got: {stats}"
     assert stats.get("chunks", 0) >= 45000, f"Expected >= 45,000 full-spectrum chunks, got: {stats}"
