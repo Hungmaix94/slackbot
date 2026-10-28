@@ -269,7 +269,31 @@ def build_database():
             file_chunks = split_markdown_into_chunks(rel_id, text)
             all_chunks.extend(file_chunks)
             bmad_count += len(file_chunks)
-    print(f"  ✓ [5/5] Đặc tả BMAD & Stories (_bmad-output): {bmad_count} chunks")
+    print(f"  ✓ [5/6] Đặc tả BMAD & Stories (_bmad-output): {bmad_count} chunks")
+
+    # 6. ERP Web Domain Docs & MVL Environment / Test Accounts Playbooks
+    web_docs_dir = ROOT_MVL / "erp-repo" / "web" / "docs"
+    web_env_count = 0
+    if web_docs_dir.exists():
+        for md_file in sorted(web_docs_dir.rglob("*.md")):
+            rel_id = "web-docs/" + str(md_file.relative_to(web_docs_dir))
+            text = md_file.read_text(encoding="utf-8", errors="ignore")
+            file_chunks = split_markdown_into_chunks(rel_id, text)
+            all_chunks.extend(file_chunks)
+            web_env_count += len(file_chunks)
+
+    for extra_dir, prefix in [
+        (ROOT_MVL / ".agents" / "rules", "mvl-rules/"),
+        (ROOT_MVL / ".agents" / "reference", "mvl-reference/"),
+    ]:
+        if extra_dir.exists():
+            for md_file in sorted(extra_dir.rglob("*.md")):
+                rel_id = prefix + str(md_file.relative_to(extra_dir))
+                text = md_file.read_text(encoding="utf-8", errors="ignore")
+                file_chunks = split_markdown_into_chunks(rel_id, text)
+                all_chunks.extend(file_chunks)
+                web_env_count += len(file_chunks)
+    print(f"  ✓ [6/6] Tài liệu Giao diện ERP Web (erp-repo/web/docs) & Cấu hình Môi trường/Tài khoản Test: {web_env_count} chunks")
 
     print(f"\n📦 Tổng số chunks tri thức thu thập được: {len(all_chunks):,} chunks")
 

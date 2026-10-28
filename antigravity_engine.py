@@ -19,6 +19,7 @@ from typing import Optional, List, Dict, Any
 
 from rag_engine import SRSRagEngine
 from plane_client import PlaneClient
+from env_config import format_environment_context_for_agent
 from gemini_agent import (
     GeminiAgent,
     SYSTEM_INSTRUCTION_DEFAULT as BUSINESS_SYSTEM_PROMPT,
@@ -93,7 +94,16 @@ class MVLAntigravityEngine:
             report = run_srs_code_audit(module_query)
             return report.get("markdownSummary", "")
 
-        return [search_mvl_knowledge, inspect_plane_issue, audit_srs_vs_code]
+        def inspect_mvl_environment(url_or_query: str = "") -> str:
+            """Tra cứu bản đồ 4 tier môi trường MVL (Local, Dev Glinteco, Dev Railway, Staging, Production),
+            tài khoản test Chrome DevTools MCP và ánh xạ đường dẫn URL giao diện sang màn hình, API và task Plane liên quan.
+
+            Args:
+                url_or_query: Đường dẫn URL màn hình hoặc tên môi trường cần tra cứu (ví dụ: 'erp.maivietland.vn/accounting/commission-management/manager-monthly').
+            """
+            return format_environment_context_for_agent(url_or_query, include_token=default_allow_tech)
+
+        return [search_mvl_knowledge, inspect_plane_issue, audit_srs_vs_code, inspect_mvl_environment]
 
     def create_agent_config(self, allow_tech: bool = False) -> Optional["LocalAgentConfig"]:
         """Builds a LocalAgentConfig with custom tools, subagents, budget, and compaction controls."""
@@ -201,6 +211,6 @@ class MVLAntigravityEngine:
             "sdk_package": "google-antigravity",
             "sdk_available": self.sdk_available,
             "subagents": ["business_advisor", "code_auditor"],
-            "custom_tools": ["search_mvl_knowledge", "inspect_plane_issue", "audit_srs_vs_code"],
+            "custom_tools": ["search_mvl_knowledge", "inspect_plane_issue", "audit_srs_vs_code", "inspect_mvl_environment"],
             "budget": {"max_model_calls": 4, "max_tool_calls": 6, "max_total_tokens": 60000},
         }

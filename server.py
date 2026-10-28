@@ -22,6 +22,7 @@ from gemini_agent import (
     GeminiAgent,
     classify_intent,
     is_tech_requested,
+    normalize_query_urls,
     run_srs_code_audit,
     sanitize_agent_response,
 )
@@ -30,6 +31,14 @@ from excel_generator import parse_all_markdown_tables, create_excel_from_tables
 from user_mapping import extract_and_resolve_assignees
 from testcase_collector import TestcaseCollector
 from antigravity_engine import MVLAntigravityEngine
+from env_config import (
+    MVL_ENVIRONMENTS,
+    MVL_TEST_ACCOUNTS,
+    ROUTE_KNOWLEDGE_MAP,
+    resolve_url_and_route_info,
+    format_environment_context_for_agent,
+    get_cached_erp_jwt_token,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -162,12 +171,19 @@ async def process_query_and_reply(
             )
             return
 
-        plane_context, enriched_plane_terms = await plane_client.resolve_issue_references_from_text(query)
-        search_query = f"{query} {enriched_plane_terms}".strip()
+        clean_q = normalize_query_urls(query)
+        plane_context, enriched_plane_terms = await plane_client.resolve_issue_references_from_text(clean_q)
+        env_info = resolve_url_and_route_info(query)
+        env_context = ""
+        if env_info.get("matched_screen") or any(w in clean_q.lower() for w in ["môi trường", "chrome mcp", "staging", "glinteco.com", "maivietland.vn", "railway.app"]):
+            env_context = format_environment_context_for_agent(query, include_token=tech_mode)
+
+        search_query = f"{clean_q} {enriched_plane_terms}".strip()
 
         chunks = rag_engine.search(search_query, top_k=8, include_code=True)
         srs_context = rag_engine.format_context(chunks, allow_tech=tech_mode)
-        full_context = f"{plane_context}\n\n{srs_context}".strip() if plane_context else srs_context
+        ctx_parts = [p for p in [plane_context, env_context, srs_context] if p]
+        full_context = "\n\n".join(ctx_parts).strip()
 
         eff_type = instruction_type
         if intent == "BA":
@@ -963,27 +979,65 @@ async def test_query(request: Request):
             "answer": concise_card,
         }
 
-    plane_context, enriched_plane_terms = await plane_client.resolve_issue_references_from_text(query)
-    search_query = f"{query} {enriched_plane_terms}".strip()
+    clean_q = normalize_query_urls(query)
+    plane_context, enriched_plane_terms = await plane_client.resolve_issue_references_from_text(clean_q)
+    env_info = resolve_url_and_route_info(query)
+    env_context = ""
+    if env_info.get("matched_screen") or any(w in clean_q.lower() for w in ["môi trường", "chrome mcp", "staging", "glinteco.com", "maivietland.vn", "railway.app"]):
+        env_context = format_environment_context_for_agent(query, include_token=tech_mode)
+
+    search_query = f"{clean_q} {enriched_plane_terms}".strip()
     chunks = rag_engine.search(search_query, top_k=8, include_code=True)
     context = rag_engine.format_context(chunks, allow_tech=tech_mode)
-    full_context = f"{plane_context}\n\n{context}".strip() if plane_context else context
+    ctx_parts = [p for p in [plane_context, env_context, context] if p]
+    full_context = "\n\n".join(ctx_parts).strip()
     answer = await agy_engine.generate_answer(
-        query=query,
+        query=clean_q,
         srs_context=full_context,
         instruction_type=instruction_type,
         enriched_query=enriched_plane_terms,
     )
     return {
         "query": query,
+        "clean_query": clean_q,
         "intent": intent,
         "techMode": tech_mode,
         "type": instruction_type,
         "plane_enriched": bool(plane_context),
+        "environment_resolved": env_info,
         "chunks_found": len(chunks),
         "citations": [c["citation"] for c in chunks],
         "antigravity_sdk": agy_engine.get_sdk_info(),
         "answer": answer,
+    }
+
+
+@app.get("/api/environments")
+async def get_mvl_environments():
+    """Trả về toàn bộ bản đồ 4 tier môi trường MVL, tài khoản test và ánh xạ màn hình phục vụ Chrome DevTools MCP."""
+    return {
+        "status": "ok",
+        "environments": MVL_ENVIRONMENTS,
+        "test_accounts": MVL_TEST_ACCOUNTS,
+        "route_knowledge_map": ROUTE_KNOWLEDGE_MAP,
+    }
+
+
+@app.get("/api/chrome-mcp-context")
+async def get_chrome_mcp_context(url: str = "", mint_token: bool = False):
+    """Phân tích URL màn hình và trả về target URL Dev/Railway + hướng dẫn/token cho Chrome DevTools MCP."""
+    info = resolve_url_and_route_info(url)
+    token = None
+    if mint_token:
+        token = get_cached_erp_jwt_token("https://api.mvl.glinteco.com") or get_cached_erp_jwt_token(
+            "https://erp-backend-production-484d.up.railway.app"
+        )
+    return {
+        "status": "ok",
+        "resolved": info,
+        "jwt_token_minted": bool(token),
+        "chrome_mcp_quick_auth_js": f"localStorage.setItem('auth_token', '{token}'); location.reload();" if token else None,
+        "formatted_context": format_environment_context_for_agent(url, include_token=mint_token),
     }
 
 

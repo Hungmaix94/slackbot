@@ -27,11 +27,14 @@ QUY TẮC BẮT BUỘC TUYỆT ĐỐI (VI PHẠM SẼ BỊ LOẠI BỎ):
    - Dòng đầu tiên của câu trả lời BẮT BUỘC phải là kết luận trực tiếp bắt đầu bằng: `💡 *[Kết luận trọng tâm ngay lập tức]*`.
 2. ĐÚNG TRỌNG TÂM & CHÍNH XÁC 100%:
    - Trả lời thẳng vào đúng câu hỏi hoặc đúng vấn đề của Task Plane được hỏi.
+   - Khi người dùng hỏi kiểu "Cột <Tên cột> logic hiển thị là gì", từ "logic" là danh từ hỏi về quy tắc hiển thị, TUYỆT ĐỐI KHÔNG ghép chữ "logic" vào tên cột (ví dụ: viết "Cột HHQL", CẤM viết "Cột HHQL logic").
+   - Khi người dùng yêu cầu "Tìm task liên quan...", BẮT BUỘC phải nêu rõ các mã Task Plane / ClickUp liên quan có trong ngữ cảnh (ví dụ: `MVL-3308` / `86eyrhv87`, `86eyunfa5`, `MVLGO-224`, `MVL-3618`...), tuyệt đối KHÔNG trả lời là "Không có task nào" khi ngữ cảnh đã cung cấp.
+   - Không tự suy diễn kỳ tháng (như kỳ tháng 7/2026) từ tham số phân trang/năm trên đường dẫn URL (`?year=2026&page=4...`).
    - Tuyệt đối KHÔNG lấy các mục `Changelog` hoặc tính năng không liên quan (như Redis cache, Media thumbnail, update_or_create...) để trả lời râu ông nọ cắm cằm bà kia.
    - Tuyệt đối KHÔNG trả lời kiểu "vui lòng cung cấp thêm thông tin Mục tiêu nghiệp vụ, AC..." khi trong ngữ cảnh đã có thông tin Task Plane hoặc quy tắc hệ thống.
 3. THUẦN BUSINESS 100% — KHÔNG RÒ RỈ THUẬT NGỮ CODE:
    - Diễn đạt hoàn toàn bằng ngôn ngữ nghiệp vụ dễ hiểu cho Kế toán, Sale, BA, Quản lý.
-   - TUYỆT ĐỐI KHÔNG nhắc tên file code (`.py`, `.ts`, `.tsx`, `apps/...`), tên hàm/biến/class (`_resolve_managers_for_department`, `create_from_pdcdt`, `_attach_summary_line`, `SalesInvoice`, `MonthlySummaryStatus`...), mã lỗi kỹ thuật (`InvalidStateTransitionError`, `ValidationError`), database, API hay từ "code", "mã nguồn", "tool".
+   - TUYỆT ĐỐI KHÔNG nhắc tên file code (`.py`, `.ts`, `.tsx`, `apps/...`), tên hàm/biến/class/model/bảng dạng `PascalCase` hoặc `snake_case` (`DepartmentMonthlyKpi`, `CommissionPayable`, `_resolve_managers_for_department`, `create_from_pdcdt`, `_attach_summary_line`, `SalesInvoice`, `MonthlySummaryStatus`, `CommMgrMonthlyTable`...), mã lỗi kỹ thuật (`InvalidStateTransitionError`, `ValidationError`), database, API hay từ "code", "mã nguồn", "tool".
    - Dịch trạng thái sang tiếng Việt: Nháp (thay vì DRAFT), Đã xác nhận (thay vì CONFIRMED), Đã duyệt (thay vì APPROVED), Đã chi tiền (thay vì PAID), Mở lại (thay vì reopen).
 4. TRẢ LỜI THEO GẠCH ĐẦU DÒNG NGẮN GỌN, ĐÚNG Ý (TỐI ĐA 4 - 6 GẠCH ĐẦU DÒNG):
    - TUYỆT ĐỐI KHÔNG viết đoạn văn dài nhiều câu trong 1 gạch đầu dòng.
@@ -434,16 +437,40 @@ def run_srs_code_audit(query: str = "") -> Dict[str, Any]:
     }
 
 
+def normalize_query_urls(query: str) -> str:
+    """
+    Làm sạch các tham số query string rác trên URL frontend (VD: ?year=2026&page=4&...)
+    nhưng giữ nguyên đường dẫn route nghiệp vụ (VD: /accounting/commission-management/manager-monthly)
+    để tránh gây nhiễu cho bộ tìm kiếm BM25 và tránh LLM tự suy diễn kỳ tháng từ URL.
+    """
+    if not query:
+        return ""
+    # Chuyển link Slack dạng <https://erp.maivietland.vn/path?query|erp.maivietland.vn/path?query> thành route sạch
+    cleaned = re.sub(r"<https?://[^>|]+\|([^>]+)>", r"\1", query)
+    # Cắt bỏ phần ?query_string trên URL nhưng giữ nguyên domain/path
+    cleaned = re.sub(
+        r"((?:https?://)?(?:erp|crm|cms|appsale|pm)\.[a-z0-9\.\-]+/[a-zA-Z0-9_\-/]+)\?[^\s\)\>]+",
+        r"\1",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned
+
+
 def sanitize_agent_response(raw_text: str, allow_tech: bool = False) -> str:
     """
     Hậu xử lý nghiêm ngặt:
     1. Lược bỏ 100% đoạn giới thiệu dài dòng ở đầu ("Chào bạn, với tư cách là...", "Tôi xin phản hồi...", "Dựa trên tài liệu...").
     2. Loại bỏ các dòng "Khuyến nghị: Vui lòng cung cấp nội dung..." hoặc trích dẫn Changelog rác.
-    3. Nếu allow_tech=False (mặc định): khử triệt để mọi tên file code, hàm, class, biến kỹ thuật.
+    3. Khử lỗi cú pháp ghép chữ "logic" vào tên cột ("Cột HHQL logic" -> "Cột HHQL").
+    4. Nếu allow_tech=False (mặc định): khử triệt để mọi tên file code, hàm, class PascalCase, biến snake_case kỹ thuật.
     """
     if not raw_text:
         return ""
     cleaned = raw_text.strip()
+
+    # Khử lỗi ghép từ "Cột <Tên> logic" -> "Cột <Tên>"
+    cleaned = re.sub(r"\b([Cc]ột\s+HHQL)\s+logic\b", r"\1", cleaned)
 
     # 1. Cắt bỏ mọi câu mở đầu chào hỏi / tự giới thiệu vai trò dài dòng
     intro_patterns = [
@@ -499,6 +526,10 @@ def sanitize_agent_response(raw_text: str, allow_tech: bool = False) -> str:
             (r"`?DEPARTMENT_HEAD`?", "Trưởng phòng"),
             (r"`?DIVISION_DIRECTOR`?", "Giám đốc khối"),
             (r"`?BRANCH_DIRECTOR`?", "Giám đốc chi nhánh"),
+            (r"`?DepartmentMonthlyKpi`?", "Bảng KPI phòng ban theo tháng"),
+            (r"`?CommissionPayable`?", "Khoản hoa hồng phải trả"),
+            (r"`?CommMgrMonthlyTable`?", "Bảng tổng kết hoa hồng quản lý theo tháng"),
+            (r"`?CommMgrMonthlySummaryTable`?", "Bảng tổng kết hoa hồng quản lý theo tháng"),
             (r"`?MonthlyBeneficiaryCommissionSummary`?", "Bảng tổng hợp hoa hồng theo tháng"),
             (r"`?InvestorReconciliationSheet`?", "Phiếu đối chiếu Chủ đầu tư"),
             (r"`?SalesInvoiceService`?", "nghiệp vụ Hóa đơn bán ra"),
@@ -512,6 +543,8 @@ def sanitize_agent_response(raw_text: str, allow_tech: bool = False) -> str:
             (r"`?reconciliation_date`?", "ngày đối chiếu"),
             (r"`?issue_date`?", "ngày lập hóa đơn"),
             (r"`?accounting_period`?", "kỳ kế toán"),
+            (r"`?hh_kpi_hhql`?", "cột HHQL"),
+            (r"`?hh_quan_ly`?", "cột Thưởng HH quản lý"),
             (r"`?MonthlySummaryStatus\.DRAFT`?", "trạng thái Nháp"),
             (r"`?MonthlySummaryStatus\.CONFIRMED`?", "trạng thái Đã xác nhận"),
             (r"\btrạng thái\s+`?DRAFT`?\b", "trạng thái Nháp"),
@@ -522,6 +555,10 @@ def sanitize_agent_response(raw_text: str, allow_tech: bool = False) -> str:
         ]
         for pattern, repl in replacements:
             cleaned = re.sub(pattern, repl, cleaned, flags=re.IGNORECASE)
+
+        # Khử mọi tên class/model PascalCase hoặc biến snake_case nằm trong dấu backtick còn sót lại ở chế độ Business
+        cleaned = re.sub(r"`[A-Z][a-z0-9]+(?:[A-Z][a-zA-Z0-9]+)+`", "dữ liệu hệ thống", cleaned)
+        cleaned = re.sub(r"`[a-z0-9]+_[a-z0-9_]+`", "thông tin hệ thống", cleaned)
 
     # 4. Tự động tách các gạch đầu dòng quá dài (> 220 ký tự, ghép nhiều câu) thành các gạch đầu dòng ngắn gọn
     normalized_lines = []
@@ -547,9 +584,10 @@ class GeminiAgent:
         if not self.api_key:
             logger.warning("GEMINI_API_KEY is not set!")
         self.client = genai.Client(api_key=self.api_key) if (self.api_key and genai) else None
-        self.primary_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+        self.primary_model = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
         self.fallback_models = [
             "gemini-2.5-flash-lite",
+            "gemini-2.5-flash",
             "gemini-2.0-flash",
             "gemini-flash-latest",
         ]
@@ -569,7 +607,8 @@ class GeminiAgent:
         instruction_type: str = "default",
         enriched_query: str = "",
     ) -> str:
-        lookup_text = f"{query} {enriched_query}".strip()
+        clean_query = normalize_query_urls(query)
+        lookup_text = f"{clean_query} {enriched_query}".strip()
         tech_mode = is_tech_requested(query) or instruction_type == "tech"
         instructions = {
             "default": SYSTEM_INSTRUCTION_DEV if tech_mode else SYSTEM_INSTRUCTION_DEFAULT,
@@ -601,7 +640,7 @@ class GeminiAgent:
                 prompt_parts.append(f"- {role}: {text_part}\n")
             prompt_parts.append("\n---\n")
 
-        prompt_parts.append(f"Yêu cầu của người dùng (Trả lời thẳng ngay dòng 1, KHÔNG chào hỏi hay giới thiệu vai trò):\n{query}")
+        prompt_parts.append(f"Yêu cầu của người dùng (Trả lời thẳng ngay dòng 1, KHÔNG chào hỏi hay giới thiệu vai trò):\n{clean_query}")
         final_prompt = "\n".join(prompt_parts)
 
         if self.client:

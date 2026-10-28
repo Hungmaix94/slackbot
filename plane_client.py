@@ -44,6 +44,53 @@ KNOWN_PLANE_ISSUES_FALLBACK: Dict[str, Dict[str, str]] = {
         "external_id": "MVLCTV-940",
         "description": "Hỗ trợ chọn nhiều dự án (multi-select) trên bộ lọc và biểu mẫu cấu hình dự án.",
     },
+    "MVL-3308": {
+        "identifier": "MVL-3308",
+        "name": "[CR] [HH theo tháng-quản lý] - Đổi tên và ẩn cột trong màn hình Danh sách",
+        "external_id": "86eyrhv87",
+        "description": (
+            "Trên màn Bảng tổng kết Hoa hồng quản lý theo tháng (/accounting/commission-management/manager-monthly): "
+            "đổi tên cột đứng cạnh cột HHQL từ 'HH quản lý (TBC)' sang 'Thưởng HH quản lý' và ẩn/gỡ cột 'Thưởng' khỏi màn Danh sách & xuất Excel. "
+            "Cột 'HHQL' (hoa hồng quản lý theo % KPI phòng ban) được giữ nguyên hiển thị tách biệt với cột 'Thưởng HH quản lý'."
+        ),
+    },
+    "MVL-3314": {
+        "identifier": "MVL-3314",
+        "name": "[CR] [HH theo tháng] - Đổi tên màn hình và gộp tính năng HHQL",
+        "external_id": "86eyrevc6",
+        "description": (
+            "Đổi tên màn hình 'HH theo tháng — Quản lý' thành 'Bảng tổng kết Hoa hồng quản lý theo tháng' "
+            "(/accounting/commission-management/manager-monthly) và gộp chung phần tổng kết HHQL vào cùng màn hình."
+        ),
+    },
+    "MVL-3618": {
+        "identifier": "MVL-3618",
+        "name": "[CR] [HHQL] - Tách riêng màn Báo cáo Bảng hoa hồng hàng tháng HHQL",
+        "external_id": "86eyt06ga",
+        "description": (
+            "Gỡ màn vận hành HHQL riêng lẻ để gộp cột HHQL vào màn Bảng tổng kết Hoa hồng quản lý theo tháng (manager-monthly), "
+            "đồng thời tách riêng màn chỉ-đọc 'Báo cáo Bảng hoa hồng hàng tháng HHQL' (/accounting/reports/hhql-monthly)."
+        ),
+    },
+    "MVLGO-224": {
+        "identifier": "MVLGO-224",
+        "name": "[HH theo tháng - Quản lý] Bổ sung đủ các cột thành phần vào bảng chi tiết để khớp cột Tổng HH (ClickUp 86eyunfa5)",
+        "external_id": "86eyunfa5",
+        "description": (
+            "Theo ClickUp 86eyunfa5 & MVLGO-224/MVLGO-227: chỉ ẩn cột 'HH Đầu tư, Xúc tiến & PT Dự án' ở màn HH theo tháng — Sale, "
+            "nhưng chốt GIỮ NGUYÊN KHÔNG ẨN cột HHQL và các cột thành phần trên màn Bảng tổng kết HH quản lý theo tháng (manager-monthly) "
+            "để đảm bảo bất biến bắt buộc: Tổng các cột thành phần trên dòng = Cột Tổng HH."
+        ),
+    },
+    "MVLGO-245": {
+        "identifier": "MVLGO-245",
+        "name": "[HH theo tháng - Quản lý] Đồng bộ 12 cột xuất Excel khớp 100% với cột Tổng HH",
+        "external_id": "MVLGO-245",
+        "description": (
+            "Đồng bộ đầy đủ 12 cột thành phần (bao gồm Thưởng HH quản lý và HHQL) khi xuất Excel trên màn Bảng tổng kết HH quản lý theo tháng "
+            "để tổng ngang khớp 100% với cột Tổng HH."
+        ),
+    },
 }
 
 
@@ -59,6 +106,12 @@ def _strip_html(raw_html: str) -> str:
 
 class PlaneClient:
     FALLBACK_WORKSPACE_API_KEY = "plane_api_dfeaa88d10704e32a1d15e45d0006318"
+    CORE_PROJECTS: Dict[str, str] = {
+        "MVL": "ef79ee12-dbe4-415a-bc9f-6cf91ba944f2",
+        "MVLGO": "51d54abd-bb88-41de-b7f9-c9b335c34dda",
+        "MAIVIETLAN": "87148fce-00c3-42c4-9369-a7af6cb9cc50",
+        "MVLCTV": "e92f7ba8-0db9-487f-a21c-13712d226eb8",
+    }
 
     def __init__(
         self,
@@ -80,6 +133,7 @@ class PlaneClient:
         )
         self._issue_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
         self._comments_cache: Dict[str, Tuple[float, List[str]]] = {}
+        self._project_issues_cache: Dict[str, Tuple[float, List[Dict[str, Any]]]] = {}
         self._cache_ttl_sec: float = 300.0
 
     @property
@@ -179,6 +233,11 @@ class PlaneClient:
     async def get_issue_comments(self, project_id: str, issue_id: str) -> List[str]:
         if not self.api_key or not project_id or not issue_id:
             return []
+        cache_key = f"{project_id}:{issue_id}"
+        now = time.monotonic()
+        cached = self._comments_cache.get(cache_key)
+        if cached and (now - cached[0]) < self._cache_ttl_sec:
+            return cached[1]
         url = f"{self.host_url}/api/v1/workspaces/{self.workspace_slug}/projects/{project_id}/issues/{issue_id}/comments/"
         try:
             if httpx is not None:
@@ -197,6 +256,7 @@ class PlaneClient:
                 txt = _strip_html(item.get("comment_html") or item.get("comment_stripped") or "")
                 if txt:
                     comments.append(txt[:400])
+            self._comments_cache[cache_key] = (now, comments)
             return comments
         except Exception:
             return []
@@ -227,24 +287,55 @@ class PlaneClient:
                 uuid_pairs.append(pair)
 
         if not readable_keys and not uuid_pairs:
+            # Nếu người dùng hỏi "Tìm task liên quan...", "task nào...", "ẩn cột..." mà chưa nêu mã task cụ thể,
+            # tự động ánh xạ các task trọng điểm liên quan để bổ sung vào ngữ cảnh
+            t_lower = text.lower()
+            if any(
+                kw in t_lower
+                for kw in [
+                    "manager-monthly",
+                    "bảng tổng kết hh quản lý",
+                    "bang tong ket hh quan ly",
+                    "ẩn cột",
+                    "an cot",
+                    "đổi tên cột",
+                    "cột hhql",
+                    "cot hhql",
+                ]
+            ):
+                for auto_k in ["MVL-3308", "MVL-3314", "MVLGO-224", "MVLGO-245", "MVL-3618"]:
+                    if auto_k not in readable_keys:
+                        readable_keys.append(auto_k)
+
+        if not readable_keys and not uuid_pairs:
             return "", ""
 
         resolved_blocks: List[str] = []
         enriched_terms: List[str] = []
 
         fetched_issues = await asyncio.gather(
-            *(self.get_issue_by_readable_id(k) for k in readable_keys[:3]),
+            *(self.get_issue_by_readable_id(k) for k in readable_keys[:5]),
             return_exceptions=True,
         )
-        for key, issue in zip(readable_keys[:3], fetched_issues):
-            if not isinstance(issue, dict) or not issue:
-                continue
+        valid_pairs = [
+            (key, issue)
+            for key, issue in zip(readable_keys[:5], fetched_issues)
+            if isinstance(issue, dict) and issue
+        ]
+        comments_list = await asyncio.gather(
+            *(
+                self.get_issue_comments(iss.get("project") or "", iss.get("id") or "")
+                if (iss.get("project") and iss.get("id"))
+                else asyncio.sleep(0, result=[])
+                for _, iss in valid_pairs
+            ),
+            return_exceptions=True,
+        )
+        for (key, issue), comments_res in zip(valid_pairs, comments_list):
             title = (issue.get("name") or "").strip()
             desc = _strip_html(issue.get("description_html") or issue.get("description") or "")
             ext_id = (issue.get("external_id") or "").strip()
-            proj_id = issue.get("project") or ""
-            iss_id = issue.get("id") or ""
-            comments = await self.get_issue_comments(proj_id, iss_id) if (proj_id and iss_id) else []
+            comments = comments_res if isinstance(comments_res, list) else []
 
             # Nếu Plane trả về description rỗng nhưng có trong fallback chuẩn, bổ sung gợi ý ngữ cảnh
             fallback_info = KNOWN_PLANE_ISSUES_FALLBACK.get(key, {})
@@ -345,41 +436,82 @@ class PlaneClient:
         pid = project_id or self.default_project_id
         if not pid:
             return []
+        cache_key = f"{pid}:{per_page}:{order_by}"
+        now = time.monotonic()
+        cached = self._project_issues_cache.get(cache_key)
+        if cached and (now - cached[0]) < self._cache_ttl_sec:
+            return cached[1]
         url = f"{self.host_url}/api/v1/workspaces/{self.workspace_slug}/projects/{pid}/issues/?per_page={per_page}&order_by={order_by}"
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.get(url, headers=self.headers)
-            if not res.is_success:
-                logger.error(f"Plane get_issues error: {res.status_code} {res.text}")
-                return []
-            data = res.json()
-            if isinstance(data, list):
-                return data
-            return data.get("results", [])
+        try:
+            async with httpx.AsyncClient(timeout=12.0) as client:
+                res = await client.get(url, headers=self.headers)
+                if not res.is_success:
+                    logger.error(f"Plane get_issues error: {res.status_code} {res.text[:200]}")
+                    return []
+                data = res.json()
+                results = data if isinstance(data, list) else data.get("results", [])
+                self._project_issues_cache[cache_key] = (now, results)
+                return results
+        except Exception as e:
+            logger.warning(f"Plane get_issues exception for {pid}: {e}")
+            return []
 
     async def search_issues(
         self,
         query: str,
         project_id: Optional[str] = None,
         filter_bugs: bool = False,
+        limit: int = 20,
     ) -> List[Dict[str, Any]]:
-        all_issues = await self.get_issues(project_id=project_id, per_page=100)
+        if project_id:
+            all_issues = await self.get_issues(project_id=project_id, per_page=100)
+        else:
+            proj_lists = await asyncio.gather(
+                *(self.get_issues(project_id=pid, per_page=80) for pid in self.CORE_PROJECTS.values()),
+                return_exceptions=True,
+            )
+            all_issues = []
+            for p_code, p_res in zip(self.CORE_PROJECTS.keys(), proj_lists):
+                if isinstance(p_res, list):
+                    for item in p_res:
+                        if isinstance(item, dict) and not item.get("identifier") and item.get("sequence_id"):
+                            item["identifier"] = f"{p_code}-{item['sequence_id']}"
+                        all_issues.append(item)
+
         if not query or not query.strip():
-            return all_issues
+            return all_issues[:limit]
 
         query_lower = query.lower().strip()
         keywords = [k for k in query_lower.split() if len(k) >= 2]
 
-        matched = []
+        matched: List[Dict[str, Any]] = []
+        seen_ids = set()
+
+        # Ưu tiên khớp từ KNOWN_PLANE_ISSUES_FALLBACK (các CR/Task trọng điểm đã xác thực)
+        for key, fb in KNOWN_PLANE_ISSUES_FALLBACK.items():
+            fb_text = f"{key} {fb.get('name', '')} {fb.get('external_id', '')} {fb.get('description', '')}".lower()
+            if any(kw in fb_text for kw in keywords):
+                matched.append(fb)
+                seen_ids.add(key)
+
         for issue in all_issues:
+            ident = issue.get("identifier") or issue.get("id")
+            if ident in seen_ids:
+                continue
             name = (issue.get("name") or "").lower()
             desc = (issue.get("description_html") or "").lower()
-            if not keywords or any(kw in name or kw in desc for kw in keywords):
+            ext_id = (issue.get("external_id") or "").lower()
+            if not keywords or any(kw in name or kw in desc or kw in ext_id for kw in keywords):
                 if filter_bugs:
                     if any(b in name or b in desc for b in ["bug", "lỗi", "loi", "error", "defect"]):
                         matched.append(issue)
+                        if ident:
+                            seen_ids.add(ident)
                 else:
                     matched.append(issue)
-        return matched
+                    if ident:
+                        seen_ids.add(ident)
+        return matched[:limit]
 
     async def create_issue(
         self,

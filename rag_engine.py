@@ -84,6 +84,11 @@ DOMAIN_PHRASES = [
     "giữ lại hoa hồng",
     "chuyển hướng người nhận",
     "ví tạm ứng",
+    "manager-monthly",
+    "bảng tổng kết hh quản lý",
+    "cột hhql",
+    "thưởng hh quản lý",
+    "ẩn cột",
 ]
 
 
@@ -382,8 +387,12 @@ class SRSRagEngine:
             # Source authority adjustments
             if doc_id.startswith("backend-docs/issues/"):
                 score += 18.0
+            elif doc_id.startswith("web-docs/"):
+                score += 17.0
             elif doc_id.startswith("backend-docs/business_logic/"):
                 score += 16.0
+            elif doc_id.startswith(("mvl-rules/", "mvl-reference/")):
+                score += 15.0
             elif doc_id.startswith("features/") and (doc_id.endswith("brd.md") or doc_id.endswith("fsd.md")):
                 score += 14.0
             elif doc_id.startswith("code:erp-backend/"):

@@ -46,6 +46,46 @@ DOMAIN_CODE_MAP: List[Dict[str, Any]] = [
         "audit_recommendation": "Bổ sung cảnh báo trên giao diện Tính HHQL tháng khi phòng ban đạt KPI nhưng vai trò GĐKD/TPKD bị trống người thụ hưởng.",
     },
     {
+        "id": "manager_monthly_hhql_column_and_tasks",
+        "module_name": "Bảng Tổng kết Hoa hồng Quản lý Theo Tháng (manager-monthly) — Cột HHQL & Các Task Ẩn/Đổi tên Cột",
+        "keywords": [
+            "manager-monthly", "commission-management/manager-monthly",
+            "bảng tổng kết hh quản lý theo tháng", "bang tong ket hh quan ly theo thang",
+            "bảng tổng kết hoa hồng quản lý theo tháng", "hh theo tháng quản lý",
+            "cột hhql", "cot hhql", "ẩn cột", "an cot", "đổi tên và ẩn cột",
+            "mvl-3308", "3308", "86eyrhv87", "mvl-3314", "3314", "86eyrevc6",
+            "86eyunfa5", "mvlgo-224", "mvlgo-227", "mvlgo-245", "mvl-3618", "86eyt06ga",
+            "thưởng hh quản lý", "hh quản lý (tbc)", "commmgrmonthlytable", "20.14",
+        ],
+        "srs_doc": "features/accounting/20.14-monthly-beneficiary-commission-summary/fsd.md (§ 6.2b, § 6.2c, § 6.7)",
+        "business_logic": (
+            "Trên màn Bảng tổng kết Hoa hồng quản lý theo tháng (/accounting/commission-management/manager-monthly, đổi tên từ 'HH theo tháng — Quản lý' theo task MVL-3314 / ClickUp 86eyrevc6), "
+            "cột 'HHQL' chỉ hiển thị phần Hoa hồng quản lý tháng tính theo % hoàn thành chỉ tiêu KPI phòng ban của 4 vai trò (TPKD, GĐKD, TGĐ, TP.TKKD) lấy từ mục ③ 'Hoa hồng quản lý KPI/HHQL' trên phiếu chi tiết; "
+            "cột này tách riêng hoàn toàn với cột đứng ngay bên trái là 'Thưởng HH quản lý' (phần thưởng quản lý cố định theo từng giao dịch/căn nhân với % tiến độ về phí). "
+            "Quy tắc hiển thị ô trên cột 'HHQL': hiển thị số tiền VNĐ khi giá trị khác 0 (cả số dương lẫn số âm màu đỏ khi bị điều chuyển/khấu trừ vượt), chỉ khi bằng 0 mới hiển thị dấu gạch ngang '—', và cuối bảng có dòng TỔNG CỘNG cộng tổng cột HHQL toàn kỳ từ hệ thống. "
+            "Các task liên quan đến việc ẩn/đổi tên cột trên màn này gồm: "
+            "(1) Task MVL-3308 (ClickUp 86eyrhv87 — '[CR] [HH theo tháng-quản lý] - Đổi tên và ẩn cột trong màn hình Danh sách'): đổi tên cột kế bên từ 'HH quản lý (TBC)' sang 'Thưởng HH quản lý' và ẩn/gỡ cột 'Thưởng' khỏi bảng danh sách & xuất Excel; "
+            "(2) Task ClickUp 86eyunfa5 (SRS 20.14 § 6.2c): chỉ ẩn cột 'HH Đầu tư, Xúc tiến & PT Dự án' ở màn HH theo tháng — Sale, nhưng chốt GIỮ NGUYÊN KHÔNG ẨN cột 'HHQL' và các cột thành phần trên màn Bảng tổng kết HH quản lý theo tháng vì màn Quản lý có quy tắc bắt buộc 'Tổng các cột thành phần trên dòng = Cột Tổng HH'; "
+            "(3) Task MVLGO-224 / MVLGO-227 & MVLGO-245: khôi phục đầy đủ các cột thành phần trên màn manager-monthly và đồng bộ 12 cột xuất Excel để cộng ngang khớp 100% với cột Tổng HH; "
+            "(4) Task MVL-3618 (ClickUp 86eyt06ga) & PR #3050: gỡ màn vận hành HHQL riêng lẻ để gộp chung cột HHQL vào màn Bảng tổng kết HH quản lý theo tháng, đồng thời tách riêng màn chỉ-đọc 'Báo cáo Bảng hoa hồng hàng tháng HHQL' (/accounting/reports/hhql-monthly)."
+        ),
+        "steps": [
+            "Đối chiếu giá trị cột 'HHQL' (hoa hồng quản lý theo % KPI phòng ban) tách biệt với cột 'Thưởng HH quản lý' (thưởng quản lý cố định theo giao dịch) ngay bên trái trên màn Bảng tổng kết HH quản lý theo tháng.",
+            "Tra cứu trực tiếp các task Plane/ClickUp liên quan: MVL-3308 (86eyrhv87 — Đổi tên 'HH quản lý (TBC)' -> 'Thưởng HH quản lý' và ẩn cột 'Thưởng'), ClickUp 86eyunfa5 (quy định giữ nguyên không ẩn cột HHQL trên màn Quản lý để bảo toàn Tổng các cột thành phần = Tổng HH), MVLGO-224/MVLGO-245 và MVL-3618 (86eyt06ga).",
+        ],
+        "code_ref": "web/src/features/accounting/commissions/components/CommMgrMonthlyTable.tsx:L418-L453 & apps/accounting/services/monthly_summary_service.py:L221-L260",
+        "code_snippet": (
+            "// CommMgrMonthlyTable.tsx (L418-L453)\n"
+            "{ title: 'Thưởng HH quản lý', key: 'hh_quan_ly', render: (_, r) => renderAmount(r.hh_quan_ly) },\n"
+            "{ title: 'HHQL', key: 'hh_kpi_hhql', render: (_, r) => renderAmount(r.hh_kpi_hhql) },\n"
+            "// renderAmount: Number(val) !== 0 ? formatCurrency(val) : '—'"
+        ),
+        "audit_status": "MATCHED",
+        "audit_severity": "low",
+        "audit_drift": "Đồng bộ 100% giữa tài liệu SRS 20.14 (§ 6.2b, § 6.2c, § 6.7), các CR MVL-3308 / MVL-3314 / 86eyunfa5 / MVLGO-224 và giao diện CommMgrMonthlyTable.tsx.",
+        "audit_recommendation": "Không cần chỉnh sửa.",
+    },
+    {
         "id": "pdcdt_sales_invoice_period",
         "module_name": "Đối chiếu CĐT & Hóa đơn bán ra",
         "keywords": [
@@ -337,6 +377,37 @@ DOMAIN_CODE_MAP: List[Dict[str, Any]] = [
         "audit_status": "MATCHED",
         "audit_severity": "low",
         "audit_drift": "Đồng bộ 100% giữa tài liệu SRS và logic xử lý.",
+        "audit_recommendation": "Không cần chỉnh sửa.",
+    },
+    {
+        "id": "mvl_environments_and_chrome_mcp",
+        "module_name": "Bản đồ 4 Tier Môi trường MVL, Tài khoản Test & Cấu hình Chrome DevTools MCP",
+        "keywords": [
+            "môi trường", "moi truong", "environment", "staging", "railway", "chrome mcp",
+            "chrome devtools", "tài khoản test", "tai khoan test", "mvl.glinteco.com",
+            "api.mvl.glinteco.com", "erp.maivietland.vn", "portal.maivietland.vn",
+            "host-app-production.up.railway.app", "erp-web-production-bb1f.up.railway.app",
+            "demo123", "tier 1", "tier 2", "tier 3",
+        ],
+        "srs_doc": ".agents/rules/environments.md & srs/docs/handover/ENVIRONMENT.md & .agents/reference/staging-test-accounts.md",
+        "business_logic": (
+            "Hệ sinh thái MVL được chia làm 4 tier môi trường chuẩn: "
+            "(1) Tier 0 Local: ERP Web localhost:3000, ERP API 127.0.0.1:8000, AppSale API 127.0.0.1:8001, Host-App Shell localhost:3006 (bắt buộc test qua cổng 3006, cấm test trực tiếp cổng 3003); "
+            "(2) Tier 1 Internal Dev: Cụm Glinteco (Web https://mvl.glinteco.com, API https://api.mvl.glinteco.com, Admin https://api.mvl.glinteco.com/admin/) và Cụm Railway Cloud (ERP Web https://erp-web-production-bb1f.up.railway.app, ERP API https://erp-backend-production-484d.up.railway.app, Host-App https://host-app-production.up.railway.app, AppSale API https://app-sale-backend-production.up.railway.app, CMS Admin https://cmsadmin-production-7b06.up.railway.app, CRM https://crm-production-0da1.up.railway.app, Storefront https://appsale-production.up.railway.app, Slack Agent https://mvl-slack-agent-dev.up.railway.app); "
+            "(3) Tier 2 Client Staging/UAT: https://mvl.staging.mvl.glinteco.com (API https://api.staging.mvl.glinteco.com); "
+            "(4) Tier 3 Production Thật: ERP https://erp.maivietland.vn, Portal https://portal.maivietland.vn, API https://api.maivietland.vn, Gateway https://api-gateway.maivietland.vn; "
+            "cùng hệ thống quản lý task Plane tại https://pm.glinteco.com (workspace glinteco). "
+            "Tài khoản kiểm thử cho Chrome MCP / Playwright (mật khẩu chung 'Demo123!@#'): 'admin' (Superuser toàn quyền), '0300622217' (4 chi nhánh), '0900124966' (1 chi nhánh Quảng Ninh), '0700124595' (TKKD/TKDA), '0900026794' (TP-TKKD)."
+        ),
+        "steps": [
+            "Sử dụng Chrome MCP điều hướng tới môi trường Tier 1 (https://mvl.glinteco.com hoặc https://host-app-production.up.railway.app) và đăng nhập bằng tài khoản 'admin' / 'Demo123!@#'.",
+            "Gọi API qua đúng cổng backend (https://api.mvl.glinteco.com hoặc https://erp-backend-production-484d.up.railway.app) kèm header Authorization: Bearer <localStorage.auth_token>.",
+        ],
+        "code_ref": "env_config.py:L1-L260 (MVL_ENVIRONMENTS, MVL_TEST_ACCOUNTS, format_environment_context_for_agent)",
+        "code_snippet": "MVL_ENVIRONMENTS['tier_1_dev_glinteco']['services'] = {'erp_web': 'https://mvl.glinteco.com', 'erp_api': 'https://api.mvl.glinteco.com'}",
+        "audit_status": "MATCHED",
+        "audit_severity": "low",
+        "audit_drift": "Đồng bộ 100% giữa .agents/rules/environments.md, srs/docs/handover/ENVIRONMENT.md và env_config.py.",
         "audit_recommendation": "Không cần chỉnh sửa.",
     },
 ]
