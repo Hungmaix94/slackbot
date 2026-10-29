@@ -39,6 +39,44 @@ class TestcaseCollector:
             );
             """)
             conn.commit()
+            cur.execute("SELECT COUNT(*) FROM user_query_testcases")
+            current_count = cur.fetchone()[0]
+            if current_count == 0 and os.path.exists(self.jsonl_path):
+                loaded = 0
+                with open(self.jsonl_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            rec = json.loads(line)
+                            cites = rec.get("citations", [])
+                            cites_str = "; ".join(cites) if isinstance(cites, list) else str(cites or "")
+                            cur.execute(
+                                """
+                                INSERT OR IGNORE INTO user_query_testcases
+                                (tc_code, user_id, channel_id, thread_ts, question, answer, module, category, citations, status, created_at)
+                                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                """,
+                                (
+                                    rec.get("tc_code"),
+                                    rec.get("user_id"),
+                                    rec.get("channel_id") or "C0BHQDFV77S",
+                                    rec.get("thread_ts"),
+                                    rec.get("question", ""),
+                                    rec.get("answer", ""),
+                                    rec.get("module", "Nghiệp vụ chung"),
+                                    rec.get("category", "General_QA"),
+                                    cites_str,
+                                    rec.get("status", "collected"),
+                                    rec.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                                ),
+                            )
+                            loaded += 1
+                        except Exception:
+                            continue
+                conn.commit()
+                logger.info(f"Seeded {loaded} testcases from {self.jsonl_path} into user_query_testcases.")
             conn.close()
             logger.info("Initialized user_query_testcases table.")
         except Exception as e:

@@ -410,4 +410,111 @@ DOMAIN_CODE_MAP: List[Dict[str, Any]] = [
         "audit_drift": "Đồng bộ 100% giữa .agents/rules/environments.md, srs/docs/handover/ENVIRONMENT.md và env_config.py.",
         "audit_recommendation": "Không cần chỉnh sửa.",
     },
+    {
+        "id": "manager_monthly_negative_taxable_income_4716",
+        "module_name": "Phiếu HHQL Tháng #4716 — Hiển thị Thu nhập chịu thuế Hoa hồng Sale Âm (-3.361.337)",
+        "keywords": [
+            "4716", "3.361.337", "3361337", "thu nhập chịu thuế hoa hồng sale",
+            "thu nhap chiu thue hoa hong sale", "manager-monthly/4716", "diễn giải thuế tncn",
+            "lương chịu thuế", "thu nhập chịu thuế lũy kế",
+        ],
+        "srs_doc": "features/accounting/20.14-monthly-beneficiary-commission-summary/fsd.md (§ 6.5 Diễn giải thuế TNCN)",
+        "business_logic": (
+            "Trên Phiếu tổng kết Hoa hồng quản lý tháng (#4716), dòng 'Thu nhập chịu thuế Hoa hồng Sale' hiển thị âm (-3.361.337) là do khối Diễn giải thuế TNCN đang lấy hai con số ở hai thời điểm khác nhau để trừ cho nhau: "
+            "lấy 'Thu nhập chịu thuế lũy kế đến hết đợt HH Sale' (5.481.113 — đã chốt cứng từ lúc tổng hợp phiếu khi chưa có bảng lương) trừ đi 'Lương chịu thuế' (8.842.450 — đọc trực tiếp từ bảng lương tại thời điểm mở màn hình sau khi lương mới được chi), dẫn tới 5.481.113 - 8.842.450 = -3.361.337. "
+            "Do lúc tổng hợp phiếu #4716 hệ thống chưa có lương tháng đó và phiếu đã chuyển sang trạng thái Đã xác nhận nên không tự tính lại khi bảng lương được chi sau. "
+            "Con số âm chỉ là sai lệch hiển thị trong khối diễn giải thuế, nhưng thuế TNCN của phiếu có thể đang tính thiếu phần lũy kế lương."
+        ),
+        "steps": [
+            "Kế toán kiểm tra lại phiếu #4716, mở lại về Nháp và bấm Tổng hợp / Tính lại sau khi đã chốt bảng lương để hệ thống cập nhật đúng lũy kế thu nhập chịu thuế và thuế TNCN.",
+            "Về phía hiển thị giao diện: ẩn dòng diễn giải hiệu số khi thu nhập chịu thuế lũy kế chốt cũ nhỏ hơn lương chịu thuế hiện tại để tránh hiển thị số âm gây hiểu nhầm.",
+        ],
+        "code_ref": "apps/accounting/services/monthly_summary_service.py & web/src/features/accounting/commissions/components/TaxBreakdownSection.tsx",
+        "code_snippet": "sale_taxable_income = summary.cumulative_sale_taxable_income - current_payroll_taxable_salary",
+        "audit_status": "DRIFT",
+        "audit_severity": "medium",
+        "audit_drift": "Lương chịu thuế đọc live từ bảng lương trong khi thu nhập lũy kế lấy từ snapshot lúc chốt phiếu.",
+        "audit_recommendation": "Chốt snapshot lương chịu thuế cùng thời điểm hoặc cảnh báo cần tính lại khi bảng lương thay đổi.",
+    },
+    {
+        "id": "uniq_monthly_advance_per_employee_period_import",
+        "module_name": "Lỗi Import Số dư đầu kỳ Tạm ứng Hoa hồng (uniq_monthly_advance_per_employee_period)",
+        "keywords": [
+            "uniq_monthly_advance_per_employee_period", "duplicate key value",
+            "requester_employee_id", "số dư đầu kỳ", "so du dau ky", "1870866168",
+            "tạm ứng nhiều lần", "khác mã căn",
+        ],
+        "srs_doc": "features/accounting/20.17-commission-advance-management/fsd.md",
+        "business_logic": (
+            "Lỗi trùng dữ liệu khi import Sheet Số dư đầu kỳ tạm ứng xảy ra do kế toán nhập từ 2 khoản tạm ứng chưa thu hồi trở lên cho cùng một nhân viên trong cùng một kỳ tháng/năm (ví dụ nhân viên mã 455 trong kỳ tháng 5/2026 ở dòng 14 và dòng 16 dù khác mã căn). "
+            "Nguyên nhân là quy tắc kiểm tra ban đầu của hệ thống chỉ cho phép mỗi nhân viên tối đa 1 bản ghi tạm ứng theo kỳ (Nhân viên + Năm + Tháng) mà chưa tách đến cấp Căn hộ hoặc nhiều lần tạm ứng trong cùng kỳ. "
+            "Hệ thống đã được cập nhật gỡ bỏ ràng buộc chặn trùng cứng theo kỳ để cho phép một nhân viên có nhiều bản ghi tạm ứng theo từng căn hoặc nhiều lần tạm ứng trong cùng kỳ."
+        ),
+        "steps": [
+            "Kiểm tra các dòng có cùng nhân viên và cùng kỳ tháng/năm trong Sheet Số dư đầu kỳ (ví dụ dòng 14 và dòng 16).",
+            "Thực hiện import lại trên bản cập nhật mới nhất đã hỗ trợ lưu nhiều khoản tạm ứng theo từng mã căn cho cùng một nhân viên trong kỳ.",
+        ],
+        "code_ref": "apps/accounting/models/commission_advance.py (MonthlyCommissionAdvance constraints)",
+        "code_snippet": "# Removed strict UniqueConstraint(fields=['requester_employee', 'period_year', 'period_month']) to allow per-unit advances",
+        "audit_status": "MATCHED",
+        "audit_severity": "low",
+        "audit_drift": "Đã cập nhật cho phép nhiều bản ghi tạm ứng theo căn trong cùng kỳ.",
+        "audit_recommendation": "Không cần chỉnh sửa.",
+    },
+    {
+        "id": "shared_bonus_over_distributed_f2_pdcdt",
+        "module_name": "Lỗi Phê duyệt Đối chiếu CĐT — Thưởng chia phân bổ cho F2 vượt quá quyền lợi (shared_bonus_over_distributed)",
+        "keywords": [
+            "shared_bonus_over_distributed", "thưởng chia phân bổ cho f2 vượt quá quyền lợi",
+            "thuong chia phan bo cho f2", "nhập thưởng cho f2 tại kỳ đối chiếu",
+            "quyền lợi giao dịch của sàn này",
+        ],
+        "srs_doc": "features/sales/investor-reconciliation/fsd.md",
+        "business_logic": (
+            "Thông báo lỗi 'Thưởng chia phân bổ cho F2 vượt quá quyền lợi giao dịch của sàn này' khi phê duyệt Phiếu đối chiếu Chủ đầu tư (PDCDT) xảy ra khi tổng số tiền thưởng phân bổ cho Sàn liên kết (F2) tại kỳ đối chiếu lớn hơn hạn mức quyền lợi thưởng của F2 đã được cấu hình trên Giao dịch / Chính sách bán hàng. "
+            "Trường hợp nhập thưởng nóng cho F2 ngay tại kỳ đối chiếu nhưng trước đó không cấu hình hạn mức thưởng F2 trên Giao dịch (quyền lợi mặc định bằng 0), hệ thống sẽ chặn phê duyệt vì số phân bổ vượt quá 0."
+        ),
+        "steps": [
+            "Mở thông tin Giao dịch / Chính sách phí & thưởng liên quan và cập nhật bổ sung hạn mức quyền lợi thưởng cho Sàn F2.",
+            "Quay lại Phiếu đối chiếu Chủ đầu tư, kiểm tra tổng thưởng phân bổ cho F2 không vượt quá quyền lợi giao dịch rồi bấm Phê duyệt lại.",
+        ],
+        "code_ref": "apps/sales/services/investor_reconciliation_service.py (validate_f2_shared_bonus)",
+        "code_snippet": "if distributed_f2_bonus > deal_f2_bonus_entitlement:\n    raise ValidationError('Thưởng chia phân bổ cho F2 vượt quá quyền lợi giao dịch của sàn này.')",
+        "audit_status": "MATCHED",
+        "audit_severity": "low",
+        "audit_drift": "Đồng bộ với quy tắc kiểm soát trần thưởng F2.",
+        "audit_recommendation": "Không cần chỉnh sửa.",
+    },
+    {
+        "id": "contract_code_vs_contract_number_and_booking_unique",
+        "module_name": "Phân biệt Mã hợp đồng vs Số hợp đồng, Tính duy nhất Mã phiếu đặt chỗ & Quyền tạo/duyệt HĐ Đặt chỗ",
+        "keywords": [
+            "mã hợp đồng và số hợp đồng", "ma hop dong va so hop dong", "khác gì nhau",
+            "mã phiếu đặt chỗ", "ma phieu dat cho", "unique", "hợp đồng đặt chỗ",
+            "chờ trưởng phòng duyệt", "cho truong phong duyet", "tổng số căn", "tong so can",
+            "nhập tay", "nhap tay", "import danh sách khách hàng", "chặn trùng mã số thuế",
+            "1 chủ đầu tư chỉ được phép gán với 1 dự án", "sửa cđt của dự án đã có giao dịch",
+            "ngày cọc 17/11/2025", "cấu hình v3", "cp hỗ trợ quảng cáo",
+        ],
+        "srs_doc": "features/sales/booking-deposit-contract/fsd.md & features/crm/3.1-customer-crud/fsd.md",
+        "business_logic": (
+            "Các quy tắc nghiệp vụ cốt lõi về Hợp đồng, Dự án, Chủ đầu tư và Khách hàng trên MVL ERP: "
+            "(1) Phân biệt Mã hợp đồng và Số hợp đồng: 'Mã hợp đồng' là mã định danh nội bộ duy nhất do hệ thống tự động sinh theo quy tắc chuẩn (ví dụ HĐĐC/HĐC) để quản lý và tra cứu; còn 'Số hợp đồng' là số hiệu văn bản hợp đồng pháp lý thực tế ký kết trên giấy tờ với khách hàng hoặc Chủ đầu tư. "
+            "(2) Mã phiếu đặt chỗ: Là duy nhất (unique) trên toàn hệ thống. Sale chỉ tạo được Hợp đồng đặt chỗ khi căn hộ đang được chính Sale đó giữ chỗ (Lock căn) hợp lệ; khi gửi duyệt ('Chờ Trưởng phòng duyệt'), Trưởng phòng Kinh doanh trực tiếp của chi nhánh/phòng ban đó sẽ duyệt trên ứng dụng AppSale hoặc Web ERP để chuyển sang bước Admin/TKKD duyệt. "
+            "(3) Tổng số căn trong Dự án cho nhập tay: Vì 'Tổng số căn' phản ánh quy mô thiết kế toàn dự án theo công bố của Chủ đầu tư, trong khi số căn import vào Bảng hàng ERP chỉ là số căn thực tế MaiVietLand nhận phân phối theo từng đợt. "
+            "(4) Chủ đầu tư & Khách hàng: Hệ thống Web ERP đã hỗ trợ Import danh sách khách hàng từ file Excel (mục 3.1 CRUD Khách hàng); khi thêm mới Chủ đầu tư có logic bắt buộc chặn trùng Mã số thuế (MST); một Chủ đầu tư được gán cho nhiều dự án (quan hệ 1-N); nhưng dự án đã phát sinh giao dịch thì bị khóa không cho tự ý đổi Chủ đầu tư. "
+            "(5) Hiệu lực cấu hình phí theo ngày cọc (17/11/2025 vs 2026): Hệ thống xác định phiên bản cấu hình phí & hoa hồng theo Ngày ký đặt cọc thực tế (17/11/2025 thuộc cấu hình v3), không lấy theo ngày tạo lại bản ghi năm 2026. "
+            "(6) Sale chỉ có CP hỗ trợ quảng cáo, không có hoa hồng bán hàng: Sẽ KHÔNG hiển thị trên màn 'HH theo tháng — Sale' (nên không gửi email từ màn này được), mà hiển thị tại màn 'Bảng tổng kết Hoa hồng theo người' (21.7) để kế toán đối chiếu và gửi email."
+        ),
+        "steps": [
+            "Tra cứu Mã hợp đồng (hệ thống tự sinh) hoặc Số hợp đồng (theo văn bản ký kết) trên danh sách Hợp đồng đặt chỗ / đặt cọc.",
+            "Kiểm tra trạng thái Lock căn của Sale và thẩm quyền phê duyệt của Trưởng phòng Kinh doanh trên AppSale / Web ERP.",
+        ],
+        "code_ref": "apps/sales/models/contracts.py & apps/crm/services/customer_import_service.py",
+        "code_snippet": "contract_code = generate_unique_code('HDDC')  # System unique ID vs manual legal contract_number",
+        "audit_status": "MATCHED",
+        "audit_severity": "low",
+        "audit_drift": "Đồng bộ 100% giữa tài liệu SRS và quy tắc vận hành thực tế.",
+        "audit_recommendation": "Không cần chỉnh sửa.",
+    },
 ]

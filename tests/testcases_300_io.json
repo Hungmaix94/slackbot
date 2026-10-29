@@ -7666,5 +7666,2293 @@
       ],
       "sample_output_message": "💡 *Bảng công tháng tổng hợp ngày công thực tế, nghỉ phép/công tác đã duyệt và ngày lễ so với Công chuẩn tháng; lịch sử công tác tự động ghi nhận phòng ban theo thời điểm hiệu lực.*\n👉 *Cách xử lý:* Kiểm tra các đơn từ và ngày hiệu lực trên Quyết định điều động/bổ nhiệm trước khi chốt kỳ."
     }
+  },
+  {
+    "id": "TC_TESTBOT_001",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] cho tôi tổng kết logic update phần chi tiền cho F2",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785726528.811269",
+      "query": "cho tôi tổng kết logic update phần chi tiền cho F2"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_002",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] phê duyệt đối chiếu CDT báo lỗi này nghĩa là gì {\n    \"success\": false,\n    \"data\": null,\n",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785729924.528659",
+      "query": "phê duyệt đối chiếu CDT báo lỗi này nghĩa là gì {\n    \"success\": false,\n    \"data\": null,\n    \"error\": {\n        \"type\": \"validation_error\",\n        \"errors\": [\n            {\n                \"code\": \"invalid\",\n                \"detail\": \"Th\\u01b0\\u1edfng chia ph\\u00e2n b\\u1ed5 cho F2 v\\u01b0\\u1ee3t qu\\u00e1 quy\\u1ec1n l\\u1ee3i giao d\\u1ecbch c\\u1ee7a s\\u00e0n n\\u00e0y.\",\n                \"attr\": \"detail\"\n            },\n            {\n                \"code\": \"invalid\",\n                \"detail\": \"shared_bonus_over_distributed\",\n                \"attr\": \"code\"\n            }\n        ]\n    }\n}"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_003",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] 1. duyệt giao dịch tiền về đợt này báo lỗi này nghĩa là gì {detail: \"Deal 2897 has an unre",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785741681.528679",
+      "query": "1. duyệt giao dịch tiền về đợt này báo lỗi này nghĩa là gì {detail: \"Deal 2897 has an unresolved fee-support request — cannot approve disbursement.\"}\n2."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_004",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] update logic nghiệp vụ auto hold giúp tôi",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785743874.126739",
+      "query": "update logic nghiệp vụ auto hold giúp tôi"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_005",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] logic lấy dữ liệu lên BC này là duyệt GD tiền về đợt này hay kế toán duyệt chia HH thực nh",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785752407.249969",
+      "query": "logic lấy dữ liệu lên BC này là duyệt GD tiền về đợt này hay kế toán duyệt chia HH thực nhận https://mvl.glinteco.com/accounting/report/project-summary?page=1&page_size=25&year=2026&month=8"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_006",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] update logic chi tiền cho F2",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785833417.829779",
+      "query": "update logic chi tiền cho F2"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_007",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo phiếu đề xuất xin hỗ trợ CP bán hàng báo lỗi này nghĩa là gì Participants must be MV l",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785897251.671079",
+      "query": "tạo phiếu đề xuất xin hỗ trợ CP bán hàng báo lỗi này nghĩa là gì Participants must be MV lines with an employee or eligible CTV lines of the sale (F2 partner and exchange-dept / linked exchange floor excluded): [4193]."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_008",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] click cần duyệt hồ sơ báo lỗi này nghĩa là gì \"Documents can be reviewed only after the de",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785897251.671079",
+      "query": "click cần duyệt hồ sơ báo lỗi này nghĩa là gì \"Documents can be reviewed only after the deposit contract and the proposal are both approved (current proposal status: pending_tp_admin).\""
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_009",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] duyệt hồ sơ đề xuất báo lỗi này nghĩa là gì curl --url 'https://api.mvl.glinteco.com/api/s",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785897973.397009",
+      "query": "duyệt hồ sơ đề xuất báo lỗi này nghĩa là gì curl --url 'https://api.mvl.glinteco.com/api/sales/fee-support-requests/%7Bid%7D/approve-documents/'"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_010",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Gen file testcase giúp tôi theo phần update tạm ứng chủ đầu tư này https://github.com/MVL-",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785914942.350359",
+      "query": "Gen file testcase giúp tôi theo phần update tạm ứng chủ đầu tư này https://github.com/MVL-ERP/srs/pull/199"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_011",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] mô tả luồng nghiệp vụ hỗ trợ phí(cắt khách)",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1785922707.437099",
+      "query": "mô tả luồng nghiệp vụ hỗ trợ phí(cắt khách)"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_012",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup enhance page \"Theo dõi dư nợ hoàn ứng của nhân sự\".",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786022918.400999",
+      "query": "tạo clickup enhance page \"Theo dõi dư nợ hoàn ứng của nhân sự\"."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_013",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup enhance page \"HH theo tháng - Quản lý\"",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786023826.945439",
+      "query": "tạo clickup enhance page \"HH theo tháng - Quản lý\""
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_014",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page \"Hoa hồng theo doanh thu\"",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786026803.373519",
+      "query": "enhance page \"Hoa hồng theo doanh thu\""
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_015",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page \"Chi tiết Hoa hồng theo doanh thu\"",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786028577.557819",
+      "query": "enhance page \"Chi tiết Hoa hồng theo doanh thu\""
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_016",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page HH theo tháng - Phòng SLK",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786034428.943319",
+      "query": "enhance page HH theo tháng - Phòng SLK"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_017",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] update lại title đi, page tôi muốn sửa là HH theo tháng - Phòng SLK cơ mà",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786034428.943319",
+      "query": "update lại title đi, page tôi muốn sửa là HH theo tháng - Phòng SLK cơ mà"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_018",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page \"HH theo tháng - Phòng ban\"",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786036038.357249",
+      "query": "enhance page \"HH theo tháng - Phòng ban\""
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_019",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup cho tôi với",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786036038.357249",
+      "query": "tạo clickup cho tôi với"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_020",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page \"Đợt đi tiền\"",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786037174.268439",
+      "query": "enhance page \"Đợt đi tiền\""
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_021",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page \"*21.10 Tổng thu nhập theo người thực nhận\"*",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786037572.080669",
+      "query": "enhance page \"*21.10 Tổng thu nhập theo người thực nhận\"*"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_022",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] title page tôi ghi rõ ràng rồi sao lại rút gọn nó thành ra sai ý nghĩa vậy? update lại tit",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786037572.080669",
+      "query": "title page tôi ghi rõ ràng rồi sao lại rút gọn nó thành ra sai ý nghĩa vậy? update lại title đi"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_023",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] bổ sung thêm sticky table header nữa",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786037572.080669",
+      "query": "bổ sung thêm sticky table header nữa"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_024",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] enhance page \"*20.16 Báo cáo công nợ của CĐT (theo dự án)\"*",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786038400.054969",
+      "query": "enhance page \"*20.16 Báo cáo công nợ của CĐT (theo dự án)\"*"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_025",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup cho tôi.",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786038400.054969",
+      "query": "tạo clickup cho tôi."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_026",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] chia nhận hộ báo lỗi này nghĩa là gì{\n    \"success\": false,\n    \"data\": null,\n    \"error\":",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786074268.473179",
+      "query": "chia nhận hộ báo lỗi này nghĩa là gì{\n    \"success\": false,\n    \"data\": null,\n    \"error\": {\n        \"detail\": \"Sum of split amounts (0) must equal the recipient group's non-deduction allocated total minus the pooled portion (509423) for recipient_type=exchange recipient_id=1896.\"\n    }\n}'"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_027",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] https://mvl.glinteco.com/accounting/commission-sale/split-sheets/179",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786359604.398259",
+      "query": "https://mvl.glinteco.com/accounting/commission-sale/split-sheets/179"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_028",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra hiện tại cấu hình mức giảm trừ gia cảnh ở đâu trên hệ thống",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786523810.435599",
+      "query": "kiểm tra hiện tại cấu hình mức giảm trừ gia cảnh ở đâu trên hệ thống"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_029",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] mô tả rõ luồng nghiệp vụ, usecase theo task này https://app.clickup.com/t/90181237095/86ey",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1786679719.543739",
+      "query": "mô tả rõ luồng nghiệp vụ, usecase theo task này https://app.clickup.com/t/90181237095/86eyhyjrn"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_030",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup cho ta nào",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787028299.184419",
+      "query": "tạo clickup cho ta nào"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_031",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup nào",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787108334.033179",
+      "query": "tạo clickup nào"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_032",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] https://mvl.glinteco.com/project-admin/contract-transaction/deal/2926?tab=lads  hiển thị t",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787125384.898079",
+      "query": "https://mvl.glinteco.com/project-admin/contract-transaction/deal/2926?tab=lads  hiển thị tên Lô áp dụng"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_033",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] hãy giải thích cho tôi luồng Đề xuất tạm ứng hoa hồng ở trong quản lí giải thích luồng ngh",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787198394.989339",
+      "query": "hãy giải thích cho tôi luồng Đề xuất tạm ứng hoa hồng ở trong quản lí giải thích luồng nghiệp vụ. Thì tôi đang gặp trường hợp là khi đề xuất tạm ứng hoa hồng xong và bên đề xuất hoàn thành toàn bộ. Nhưng quay về trang quản lí thì ở cột hoàn ứng không hiển thị số tiền có phải là lỗi không ?"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_034",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] ở phần tạo khoản thưởng ban đầu ở dòng loại điều chỉnh thì hiển thị Thưởng Thêm khi tôi cl",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787198394.989339",
+      "query": "ở phần tạo khoản thưởng ban đầu ở dòng loại điều chỉnh thì hiển thị Thưởng Thêm khi tôi click chọn loại điều chỉnh click tiếp vào thưởng thêm thì dòng Loại điều chỉnh để trống và nhập giá tiền ấn thêm mới thì không báo lỗi hay gì cả lỗi này là do đâu"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_035",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tách ra làm 2 cái đê 1 cái là lỗi bên UI là không hiển thị tiền tạm ứng còn 1 cái là lỗi k",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787198394.989339",
+      "query": "tách ra làm 2 cái đê 1 cái là lỗi bên UI là không hiển thị tiền tạm ứng còn 1 cái là lỗi không validate mà"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_036",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] hãy sửa lại task 86eypc7ek về đúng nội dung ban đầu.\nTask này chỉ dùng để báo lỗi: chữ trạ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787198394.989339",
+      "query": "hãy sửa lại task 86eypc7ek về đúng nội dung ban đầu.\nTask này chỉ dùng để báo lỗi: chữ trạng thái của Phiếu đề xuất tạm ứng Hoa hồng bị tràn ra ngoài khung trên giao diện.\nTiêu đề cần khôi phục:\n[BUG] [Tạm ứng Hoa hồng] - Chữ trạng thái phiếu bị tràn khỏi khung hiển thị\nHãy xoá khỏi task 86eypc7ek toàn bộ nội dung liên quan đến:\n• Không hiển thị số tiền hoàn ứng.\n• Không validation khi tạo khoản thưởng."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_037",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] nhanh lên tạo đi",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787198827.645399",
+      "query": "nhanh lên tạo đi"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_038",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Lỗi không hiển thị số tiền hoàn ứng trên danh sách quản lý",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787209014.273579",
+      "query": "Lỗi không hiển thị số tiền hoàn ứng trên danh sách quản lý"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_039",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] https://mvl.glinteco.com/accounting/commission-management/manager-monthly/277 ở đây khi tô",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787210598.448939",
+      "query": "https://mvl.glinteco.com/accounting/commission-management/manager-monthly/277 ở đây khi tôi tạo mới một khoản thưởng/ khấu trừ thì hiện lỗi báo là \"HHQL không phải là lựa chọn hợp lệ\" và trả về 400 trên network."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_040",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] ngoài ra sau khi lỗi đấy tôi chọn ở loại điều chỉnh tôi chọn Khấu trừ thì hiện ra lỗi Expe",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787210598.448939",
+      "query": "ngoài ra sau khi lỗi đấy tôi chọn ở loại điều chỉnh tôi chọn Khấu trừ thì hiện ra lỗi Expected 'BONUS' | 'DEDUCTION' | 'AD_SUPPORT', received null"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_041",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup CR yêu cầu hiển thị thêm cột biểu diễn thông tin contract_number ở màn hình hợ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787213273.516559",
+      "query": "tạo clickup CR yêu cầu hiển thị thêm cột biểu diễn thông tin contract_number ở màn hình hợp đồng đặt cọc cho t"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_042",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup CR với STT 47 ở màn Quản lý bất động sản: khi chọn thông tin bán hàng: hiển th",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787216505.379309",
+      "query": "tạo clickup CR với STT 47 ở màn Quản lý bất động sản: khi chọn thông tin bán hàng: hiển thị danh sách mã - tên, dropdown cho phép tìm kiếm theo mã hoặc tên"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_043",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo nhanh lên sao nay chậm thế",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787299475.828509",
+      "query": "tạo nhanh lên sao nay chậm thế"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_044",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] update lại bug này",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787299475.828509",
+      "query": "update lại bug này"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_045",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] đưa lại link clickup và assign cho tôi",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787301736.624809",
+      "query": "đưa lại link clickup và assign cho tôi"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_046",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra logic khi nào hiển thị Flag \"cần tính lại\" ở màn HH theo tháng Phòng ban với URL:",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787306152.367529",
+      "query": "kiểm tra logic khi nào hiển thị Flag \"cần tính lại\" ở màn HH theo tháng Phòng ban với URL: https://mvl.glinteco.com/accounting/commission-management/dept-monthly?page=1&page_size=25&year=2026&month=7"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_047",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] xoá - **Task ID:** https://app.clickup.com/t/86eyqrn7k",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787307867.556769",
+      "query": "xoá - **Task ID:** https://app.clickup.com/t/86eyqrn7k"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_048",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tại cr theo stt\n• 58. *Hoá đơn bán ra, Hoá đơn đầu vào: Màn hình danh sách mặc định không ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787307867.556769",
+      "query": "tại cr theo stt\n• 58. *Hoá đơn bán ra, Hoá đơn đầu vào: Màn hình danh sách mặc định không hiển thị những dòng có trạng thái Đã huỷ* \n• *59.* Hoá đơn đầu vào: bổ sung thêm nút Nhận hoá đơn ở Thao tác màn hình Danh sách đối với những dòng đang có trạng thái Bản nháp"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_049",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Tại màn hình Chia HH theo tháng khi lưu ở mục Thưởng HH quản lý, hệ thống báo lỗi \"mgmt_ce",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787561084.322369",
+      "query": "Tại màn hình Chia HH theo tháng khi lưu ở mục Thưởng HH quản lý, hệ thống báo lỗi \"mgmt_ceo_agency_fee\" không phải là một lựa chọn hợp lệ."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_050",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo cho tôi Bug UI phần Filter ở phần hoạt động đặt chỗ đang không trả về kết quả gì cả kh",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787566279.596119",
+      "query": "tạo cho tôi Bug UI phần Filter ở phần hoạt động đặt chỗ đang không trả về kết quả gì cả khi mà nhập thông tin name khách hàng"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_051",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tính lại HH theo phòng ban báo lỗi này nghĩa là gì {\n    \"success\": false,\n    \"data\": nul",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787630584.139059",
+      "query": "tính lại HH theo phòng ban báo lỗi này nghĩa là gì {\n    \"success\": false,\n    \"data\": null,\n    \"error\": {\n        \"type\": \"validation_error\",\n        \"errors\": [\n            {\n                \"code\": \"invalid\",\n                \"detail\": \"Period 2026-07 was settled but has no SUPPORT_FLAT revenue recognition record. Run the backfill before rebuilding.\",\n                \"attr\": \"non_field_errors\"\n            }\n        ]\n    }\n}"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_052",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tôi đang tính lại Hoa hồng kỳ hiện hành 08/2026 curl --url 'https://api.mvl.glinteco.com/a",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787630584.139059",
+      "query": "tôi đang tính lại Hoa hồng kỳ hiện hành 08/2026 curl --url 'https://api.mvl.glinteco.com/api/accounting/department-commission-pools/rebuild/'"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_053",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo cr cho yêu cầu màn hình đề xuất phí bán hàng assign cho Phuong Manh Duc\n8.\n- Bổ sung l",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787654216.230109",
+      "query": "tạo cr cho yêu cầu màn hình đề xuất phí bán hàng assign cho Phuong Manh Duc\n8.\n- Bổ sung luồng chia thưởng cho khách\n- Màn hình xem chi tiết:\n+ Sửa tên: Xin hỗ trợ hoa hồng sale ==> Tổng phí xin hỗ trợ HH sale\n+ Bổ sung thêm dòng: Phí xin thêm (công thức = Tổng phí xin hỗ trợ HH sale - Phí sale quy định\n+ Đối với trường hợp thưởng là số tiền không hiển thị tỷ lệ phần trăm"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_054",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] assign cho Đức",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787654216.230109",
+      "query": "assign cho Đức"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_055",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo cr assign Đức : màn Chủ đầu tư, Nguồn sàn, Sàn liên kết: 9. Danh sách hiển thị thêm cộ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787654542.666839",
+      "query": "tạo cr assign Đức : màn Chủ đầu tư, Nguồn sàn, Sàn liên kết: 9. Danh sách hiển thị thêm cột ngày thành lập, địa chỉ"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_056",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo cr phân hệ Quản lý bất động sản: khi Chọn thông tin bán hàng: hiển thị danh sách mã - ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787654833.658549",
+      "query": "tạo cr phân hệ Quản lý bất động sản: khi Chọn thông tin bán hàng: hiển thị danh sách mã - tên"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_057",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo CR bổ sung thêm cột Họ và tên, cccd, sdt, email vào trong bảng excel. Khi xuất file ex",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787823240.514749",
+      "query": "tạo CR bổ sung thêm cột Họ và tên, cccd, sdt, email vào trong bảng excel. Khi xuất file excel từ quản lí giao dịch."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_058",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] check xem hệ thống đã có logic validate Hiển thị thông báo nếu Ngày hóa đơn ở hoá đơn bán ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787908796.880999",
+      "query": "check xem hệ thống đã có logic validate Hiển thị thông báo nếu Ngày hóa đơn ở hoá đơn bán ra lớn hơn Ngày thu tiền của phiếu thu"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_059",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tài liệu về AI appsale",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1787908812.404059",
+      "query": "tài liệu về AI appsale"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_060",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Màn này Backend có bộ lọc không *20.9 Thanh toán HH F2/Sàn*",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788400105.173449",
+      "query": "Màn này Backend có bộ lọc không *20.9 Thanh toán HH F2/Sàn*"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_061",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] check giúp tôi logic hiển thị cảnh báo này Hồ sơ chiết khấu khách hàng của phiếu hỗ trợ ph",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788429525.298179",
+      "query": "check giúp tôi logic hiển thị cảnh báo này Hồ sơ chiết khấu khách hàng của phiếu hỗ trợ phí FSR-2026-000015 đã quá hạn — hoa hồng bị giữ đến khi nộp hồ sơ."
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_062",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] logic đang gửi thông báo cho những role nào",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788429525.298179",
+      "query": "logic đang gửi thông báo cho những role nào"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_063",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] danh sách giao dịch, update bộ lọc cho phép lọc theo nhiều trạng thái ( sử dụng checkbox g",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788487954.312419",
+      "query": "danh sách giao dịch, update bộ lọc cho phép lọc theo nhiều trạng thái ( sử dụng checkbox group )"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_064",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup cho t",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788487954.312419",
+      "query": "tạo clickup cho t"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_065",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo CR Tại màn hình *Doanh số theo Dự án - Chi tiết*, bổ sung cột *Phòng / Khối* trong phầ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788519454.719709",
+      "query": "tạo CR Tại màn hình *Doanh số theo Dự án - Chi tiết*, bổ sung cột *Phòng / Khối* trong phần chi tiết đối tượng tham gia của từng giao dịch.\nCột này hiển thị phòng ban và khối\nurl: https://mvl.glinteco.com/project-admin/report/by-project/196?year=2026&month=7&block=4&block=41"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_066",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] check nguyên nhân báo lỗi khi mở lại bảng kê về nháp ở chi tiết HH sale- theo tháng",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788766980.808509",
+      "query": "check nguyên nhân báo lỗi khi mở lại bảng kê về nháp ở chi tiết HH sale- theo tháng"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_067",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] chỉnh sửa chi tiết tạm giữ hoa hồng sale phần breadcrumb cho  đúng theo pattern của web",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788835695.376709",
+      "query": "chỉnh sửa chi tiết tạm giữ hoa hồng sale phần breadcrumb cho  đúng theo pattern của web"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_068",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup assign cho <@U093U4SP2Q6>",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788835695.376709",
+      "query": "tạo clickup assign cho <@U093U4SP2Q6>"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_069",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] chỉnh sửa hành vi khi ấn vào bản ghi của màn danh sách HH theo tháng - F2 tại path: `/acco",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788835900.975839",
+      "query": "chỉnh sửa hành vi khi ấn vào bản ghi của màn danh sách HH theo tháng - F2 tại path: `/accounting/commission-sale/f2-monthly?page=1&page_size=25&year=2026&month=8`"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_070",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tạo clickup cho tôi. assign <@U093U4SP2Q6>",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1788835900.975839",
+      "query": "tạo clickup cho tôi. assign <@U093U4SP2Q6>"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_071",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra vì sao lương vị trí, lương tính BHXH của nhân viên này là 10.000.000https://mvl.g",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789009157.153049",
+      "query": "kiểm tra vì sao lương vị trí, lương tính BHXH của nhân viên này là 10.000.000https://mvl.glinteco.com/payroll/period/7/payslips?search=MV000003385&tab=ineligible&page=1 Trong khi Chỉ có HD lao động này còn hiệu lực với mức lương cơ bản 5.310.000https://mvl.glinteco.com/contract/manage/9266"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_072",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] thêm mới dự án báo lỗi này là do gì {\n    \"success\": false,\n    \"data\": null,\n    \"error\":",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789368006.823649",
+      "query": "thêm mới dự án báo lỗi này là do gì {\n    \"success\": false,\n    \"data\": null,\n    \"error\": {\n        \"type\": \"server_error\",\n        \"errors\": [\n            {\n                \"code\": \"error\",\n                \"detail\": \"null value in column \\\"business_developer\\\" of relation \\\"realestate_project\\\" violates not-null constraint\\nDETAIL:  Failing row contains (371, 2026-09-14 06:39:33.914862+00, 2026-09-14 06:39:33.914881+00, adsdasdsd, TEMP_H5RA2wexT68c9qKlVVJX, v\\u1ec3, , active, t, null, null, null, null, null, null, negotiation, null, null, villa, null, F0, null, 114, null, null, 0.00, 0.00, null, null, null, null, null, null, null, null, null, null, null, null).\\n\",\n                \"attr\": null\n            }\n        ]\n    }\n}"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_073",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] logic hiển thị cột HH ghi nhận trong chi tiết HH sale- theo tháng là gì ( URL: https://mvl",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789372792.093129",
+      "query": "logic hiển thị cột HH ghi nhận trong chi tiết HH sale- theo tháng là gì ( URL: https://mvl.glinteco.com/accounting/commission-sale/sale-monthly/260Web)"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_074",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra phí Vinclub đang thể hiện ở đâu, trong các màn chia HH tháng, chia HH sale",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789378405.706129",
+      "query": "kiểm tra phí Vinclub đang thể hiện ở đâu, trong các màn chia HH tháng, chia HH sale"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_075",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Kiểm tra vì sao duyệt đối chiếu CDT tháng 9 lại gen ra Hóa đơn bán ra vào kỳ hoa hồng thán",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789446565.296309",
+      "query": "Kiểm tra vì sao duyệt đối chiếu CDT tháng 9 lại gen ra Hóa đơn bán ra vào kỳ hoa hồng tháng 8 https://mvl.glinteco.com/accounting/transactions/sales-invoices/1487\nhttps://mvl.glinteco.com/project-admin/contract-transaction/investor-reconciliation/1571"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_076",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Kiểm tra vì sao duyệt đối chiếu CĐT tháng 9 lại gen ra Hóa đơn bán ra vào kỳ hoa hồng thán",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789446565.296309",
+      "query": "Kiểm tra vì sao duyệt đối chiếu CĐT tháng 9 lại gen ra Hóa đơn bán ra vào kỳ hoa hồng tháng 8\n>"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_077",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Kiểm tra vì sao duyệt đối chiếu CĐT tháng 9 lại gen ra Hóa đơn bán ra vào kỳ hoa hồng thán",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789446565.296309",
+      "query": "Kiểm tra vì sao duyệt đối chiếu CĐT tháng 9 lại gen ra Hóa đơn bán ra vào kỳ hoa hồng tháng 8"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_078",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] 1. ghi sổ Hoa hồng theo tháng Sàn liên kết báo lỗi này nghĩa là gì {success: false, data: ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789550296.337999",
+      "query": "1. ghi sổ Hoa hồng theo tháng Sàn liên kết báo lỗi này nghĩa là gì {success: false, data: null, error: {type: \"validation_error\",…}}\n2. data\n3. : \n    a. null\n4. error\n5. : \n    a. {type: \"validation_error\",…}\n6. errors\n7. : \n        i. [{code: \"invalid\", detail: \"Employee summary must be DRAFT to attach linked-exchange lines.\",…}]\n8. type\n9. : \n        i. \"validation_error\"\n10. success\n11. : \n    a. false"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_079",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra vì sao xuất file Giao dịch này https://mvl.glinteco.com/project-admin/contract-tr",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1789718315.460529",
+      "query": "kiểm tra vì sao xuất file Giao dịch này https://mvl.glinteco.com/project-admin/contract-transaction/deal?page=1&search=VH100009 thì ở file xuất cột TỶ LỆ CÒN LẠI CHƯA ĐƯỢC ĐỐI CHIÉU lại hiển thị 57.1948051948052%"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_080",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra Logic nếu Sale không phát sinh hoa hồng nhưng có CP hỗ trợ quảng cáo thì có hiển ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1790145289.632489",
+      "query": "kiểm tra Logic nếu Sale không phát sinh hoa hồng nhưng có CP hỗ trợ quảng cáo thì có hiển thị ở màn HH sale-tháng để gửi được email không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_081",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Kiểm tra phiếu thông tin giao dịch đang ở trạng thái Chờ Trưởng nhóm Admin duyệt, Thư ký k",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1790324885.478469",
+      "query": "Kiểm tra phiếu thông tin giao dịch đang ở trạng thái Chờ Trưởng nhóm Admin duyệt, Thư ký kinh doanh có thể chỉnh sửa được không hay phải chở Admin-Lead hủy mới sửa được"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_082",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] có thể sửa CĐT của dự án đã có giao dịch rồi không",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1791454302.597449",
+      "query": "có thể sửa CĐT của dự án đã có giao dịch rồi không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_083",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] mã hợp đồng và số hợp đồng khác gì nhau",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1791535275.336739",
+      "query": "mã hợp đồng và số hợp đồng khác gì nhau"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_084",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] check logic thêm mới chủ đầu tư có logic chặn trùng Mã số thuế(MST) không",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792122621.468609",
+      "query": "check logic thêm mới chủ đầu tư có logic chặn trùng Mã số thuế(MST) không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_085",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Import dữ liệu. Kế toán đã nhập ở sheet dữ liệu thô nhưng chia HH theo tháng báo lỗi này: ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792133551.828699",
+      "query": "Import dữ liệu. Kế toán đã nhập ở sheet dữ liệu thô nhưng chia HH theo tháng báo lỗi này: \"Căn HH3-C1502 chưa có đợt chia nào trong kỳ 07/2026, nên tiến độ thanh toán ở dòng này chưa có chỗ gắn vào.\". Link file import: https://docs.google.com/spreadsheets/d/1GlwPV3FCAD_WKxxgczHToUHQFsg1uQ6rvbtqJk16SuI/edit?gid=219440874#gid=219440874\nKiểm tra nguyên nhân"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_086",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Vấn đề được khai thác thêm: đã chi r lần này là chi bù cho sale và truy thu lại doanh thu ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792133551.828699",
+      "query": "Vấn đề được khai thác thêm: đã chi r lần này là chi bù cho sale và truy thu lại doanh thu ạ, nên ko điền. Vậy hệ thống có xử lý các case này không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_087",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Hợp đồng đặt chỗ sale có tạo được không khi sale đó đang được phép lock căn đó",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792134484.788169",
+      "query": "Hợp đồng đặt chỗ sale có tạo được không khi sale đó đang được phép lock căn đó"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_088",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] 1 chủ đầu tư chỉ được phép gán với 1 dự án thôi à ?",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792135849.367899",
+      "query": "1 chủ đầu tư chỉ được phép gán với 1 dự án thôi à ?"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_089",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] sale có thể tạo hợp đồng đặt chỗ ở mọi hoàn cảnh không",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792375901.277589",
+      "query": "sale có thể tạo hợp đồng đặt chỗ ở mọi hoàn cảnh không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_090",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] admin có thể tạo hợp đồng đặt chỗ khi căn đang lock không hay sale có thể tạo không",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792375901.277589",
+      "query": "admin có thể tạo hợp đồng đặt chỗ khi căn đang lock không hay sale có thể tạo không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_091",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra vì sao lại hiển thị Thu nhập chịu thuế Hoa hồng Sale là âm 3.361.337 ở đây: https",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792381041.743619",
+      "query": "kiểm tra vì sao lại hiển thị Thu nhập chịu thuế Hoa hồng Sale là âm 3.361.337 ở đây: https://erp.maivietland.vn/accounting/commission-management/manager-monthly/4716"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_092",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] khi Nhân sự upload tài liệu phòng ban, hệ thống có logic gửi thông báo cho nhân sự liên qu",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792399416.968869",
+      "query": "khi Nhân sự upload tài liệu phòng ban, hệ thống có logic gửi thông báo cho nhân sự liên quan không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_093",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] import dữ liệu báo lỗi này: duplicate key value violates unique constraint \"uniq_monthly_a",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792400447.692989",
+      "query": "import dữ liệu báo lỗi này: duplicate key value violates unique constraint \"uniq_monthly_advance_per_employee_period\"\nDETAIL: Key (requester_employee_id, period_year, period_month)=(455, 2026, 5) already exists.\nKiểm tra nguyên nhân, cách xử lý: Link file: https://docs.google.com/spreadsheets/d/1GlwPV3FCAD_WKxxgczHToUHQFsg1uQ6rvbtqJk16SuI/edit?gid=1870866168#gid=1870866168\nSheet số dư đầu kỳ"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_094",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Trùng về nhân viên, thời gian tháng, dự án nhưng đã khác mã căn. Kiểm tra thêm",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792400447.692989",
+      "query": "Trùng về nhân viên, thời gian tháng, dự án nhưng đã khác mã căn. Kiểm tra thêm"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_095",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Kiểm tra logic của task này. Chi tiết nghiệp vụ https://pm.glinteco.com/glinteco/browse/MV",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792466260.892449",
+      "query": "Kiểm tra logic của task này. Chi tiết nghiệp vụ https://pm.glinteco.com/glinteco/browse/MVL-3819/"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_096",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] kiểm tra lý do kế toán đã gửi dữ liệu sheet 3. Hóa đơn và tiền về nhưng hệ thống chưa ghi ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792551341.200409",
+      "query": "kiểm tra lý do kế toán đã gửi dữ liệu sheet 3. Hóa đơn và tiền về nhưng hệ thống chưa ghi nhận ( link: https://docs.google.com/spreadsheets/d/1GlwPV3FCAD_WKxxgczHToUHQFsg1uQ6rvbtqJk16SuI/edit?gid=15102981#gid=15102981)"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_097",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] phê duyệt đối chiếu chủ đầu tư trả response này. Check lỗi và nguyên nhân. Trường hợp nhập",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792564946.551099",
+      "query": "phê duyệt đối chiếu chủ đầu tư trả response này. Check lỗi và nguyên nhân. Trường hợp nhập thưởng cho F2 tại kỳ đối chiếu, không cấu hình trước {\n    \"success\": false,\n    \"data\": null,\n    \"error\": {\n        \"type\": \"validation_error\",\n        \"errors\": [\n            {\n                \"code\": \"invalid\",\n                \"detail\": \"Th\\u01b0\\u1edfng chia ph\\u00e2n b\\u1ed5 cho F2 v\\u01b0\\u1ee3t qu\\u00e1 quy\\u1ec1n l\\u1ee3i giao d\\u1ecbch c\\u1ee7a s\\u00e0n n\\u00e0y.\",\n                \"attr\": \"detail\"\n            },\n            {\n                \"code\": \"invalid\",\n                \"detail\": \"shared_bonus_over_distributed\",\n                \"attr\": \"code\"\n            }\n        ]\n    },\n    \"request_id\": \"facf9fabadea015f25ef69cd7179cd7b\"\n}"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_098",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] giải thích cho t trường hợp giao dịch có *ngày cọc 17/11/2025*, nhưng đến năm *2026* mới t",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792638620.823939",
+      "query": "giải thích cho t trường hợp giao dịch có *ngày cọc 17/11/2025*, nhưng đến năm *2026* mới tạo lại hợp đồng thì hệ thống phải lấy cấu hình phí và hoa hồng theo *ngày cọc 2025* hay theo *ngày tạo lại hợp đồng 2026*?\nHiện cấu hình v3 áp dụng từ *06/11/2025–31/12/2025* đã báo hết hiệu lực nên không dùng được. Theo SRS thì trường hợp này phải xử lý như thế nào, có được áp dụng lại v3 cho giao dịch cũ không?"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_099",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] mã phiếu đặt chỗ trong hợp đồng đặt chỗ có unique không",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792658043.305959",
+      "query": "mã phiếu đặt chỗ trong hợp đồng đặt chỗ có unique không"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_100",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Nhân viên kinh doanh tạo hợp đồng  đặt chỗ thì có cần Trưởng phòng thuộc chi nhánh của mìn",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1792659929.762079",
+      "query": "Nhân viên kinh doanh tạo hợp đồng  đặt chỗ thì có cần Trưởng phòng thuộc chi nhánh của mình xác nhận không hay là ai có thể xác nhận và chuyển từ trạng thái Chờ trưởng phòng duyệt đi lên và nếu là trường phòng duyệt thì duyệt ở đâu và trên nên tảng nào"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_101",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] tại sao tổng số căn ở trong chỉnh sửa dự án cho nhập tay mà không phải cho là hệ thống tự ",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1793006720.822549",
+      "query": "tại sao tổng số căn ở trong chỉnh sửa dự án cho nhập tay mà không phải cho là hệ thống tự tính luôn mà bắt người dùng phải nhập tay"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_102",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] ý tôi là tại sao mục nhập tổng số căn lại cho nhập tay giải thích",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1793006720.822549",
+      "query": "ý tôi là tại sao mục nhập tổng số căn lại cho nhập tay giải thích"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_103",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] hệ thống đã có chức năng import danh sách khách hàng ở web ERP chưa",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1793155423.100659",
+      "query": "hệ thống đã có chức năng import danh sách khách hàng ở web ERP chưa"
+    },
+    "expected_output": {
+      "intent": "SRS_QA",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
+  },
+  {
+    "id": "TC_TESTBOT_104",
+    "category": "BUSINESS_QA",
+    "description": "[#test-bot C0BHQDFV77S] Ở màn Bảng tổng kết HH quản lý theo tháng(https://erp.maivietland.vn/accounting/commission",
+    "input": {
+      "channelId": "C0BHQDFV77S",
+      "threadTs": "1793156390.054169",
+      "query": "Ở màn Bảng tổng kết HH quản lý theo tháng(https://erp.maivietland.vn/accounting/commission-management/manager-monthly?page=4&page_size=25&year=2026&month=7) Cột HHQL logic hiển thị là gì. Tìm task liên quan việc ẩn cột này"
+    },
+    "expected_output": {
+      "intent": "SEARCH_PLANE",
+      "tech_mode": false,
+      "forbidden_terms_in_output": [
+        "DepartmentMonthlyKpi",
+        "CommissionPayable",
+        "SalesInvoiceLine"
+      ],
+      "required_terms_in_output": [
+        "💡"
+      ]
+    }
   }
 ]
