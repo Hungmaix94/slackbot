@@ -93,6 +93,34 @@ def markdown_to_slack_links(text: str) -> str:
     return converted
 
 
+def _split_slack_mrkdwn_chunks(slack_text: str, max_len: int = 2800) -> List[str]:
+    """Chia văn bản dài theo ranh giới dòng để không bao giờ cắt cụt giữa câu/dòng."""
+    if len(slack_text) <= max_len:
+        return [slack_text]
+    chunks: List[str] = []
+    current_lines: List[str] = []
+    current_len = 0
+    for line in slack_text.splitlines(keepends=True):
+        if len(line) > max_len:
+            if current_lines:
+                chunks.append("".join(current_lines).rstrip())
+                current_lines = []
+                current_len = 0
+            for i in range(0, len(line), max_len):
+                chunks.append(line[i:i + max_len])
+            continue
+        if current_len + len(line) > max_len and current_lines:
+            chunks.append("".join(current_lines).rstrip())
+            current_lines = [line]
+            current_len = len(line)
+        else:
+            current_lines.append(line)
+            current_len += len(line)
+    if current_lines:
+        chunks.append("".join(current_lines).rstrip())
+    return chunks or [slack_text[:max_len]]
+
+
 def create_answer_blocks(
     text: str,
     has_excel: bool = False,
@@ -104,13 +132,13 @@ def create_answer_blocks(
     safe_text = text.strip() if text and text.strip() else "Mình chưa tìm thấy thông tin phù hợp cho yêu cầu này."
     slack_text = markdown_to_slack_links(safe_text)
 
-    chunk_size = 2800
-    for i in range(0, len(slack_text), chunk_size):
+    for chunk in _split_slack_mrkdwn_chunks(slack_text, max_len=2800):
         blocks.append({
             "type": "section",
+            "expand": True,
             "text": {
                 "type": "mrkdwn",
-                "text": slack_text[i:i + chunk_size],
+                "text": chunk,
             },
         })
 
@@ -234,7 +262,7 @@ async def process_query_and_reply(
             is_usecase=(eff_type == "usecase"),
         )
         await say(
-            text=markdown_to_slack_links(answer[:200]),
+            text=markdown_to_slack_links(answer),
             blocks=blocks,
             thread_ts=thread_ts,
         )
@@ -859,7 +887,7 @@ async def root_dashboard():
           <td>${c.input.query}</td>
           <td><span class="tag">${c.expected_output.intent}</span></td>
           <td><span class="tag ${c.expected_output.tech_mode ? 'tech' : 'biz'}">${c.expected_output.tech_mode ? 'TECH' : 'BUSINESS'}</span></td>
-          <td style="font-size:12px; color:#cbd5e1;">${(c.expected_output.sample_output_message || '').split('\\n')[0]}</td>
+          <td style="font-size:12px; color:#cbd5e1; white-space:pre-wrap;">${c.expected_output.sample_output_message || ''}</td>
         </tr>
       `).join('');
     }

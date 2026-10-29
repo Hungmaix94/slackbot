@@ -411,7 +411,7 @@ def run_srs_code_audit(query: str = "") -> Dict[str, Any]:
 
     summary = "\n".join(lines)
     blocks = [
-        {"type": "section", "text": {"type": "mrkdwn", "text": summary}},
+        {"type": "section", "expand": True, "text": {"type": "mrkdwn", "text": summary}},
         {
             "type": "actions",
             "elements": [
@@ -580,7 +580,7 @@ def sanitize_agent_response(raw_text: str, allow_tech: bool = False) -> str:
 
 class GeminiAgent:
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
+        self.api_key = os.environ.get("GEMINI_API_KEY", "") if api_key is None else api_key
         if not self.api_key:
             logger.warning("GEMINI_API_KEY is not set!")
         self.client = genai.Client(api_key=self.api_key) if (self.api_key and genai) else None

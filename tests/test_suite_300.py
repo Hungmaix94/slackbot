@@ -15,6 +15,7 @@ from gemini_agent import (
 from rag_engine import SRSRagEngine
 from user_mapping import match_plane_member
 from antigravity_engine import MVLAntigravityEngine
+from server import create_answer_blocks
 
 
 def run_python_330_test_suite():
@@ -76,6 +77,12 @@ def run_python_330_test_suite():
                     if req_term.lower() not in actual_answer.lower():
                         raise AssertionError(f"Required term '{req_term}' missing in output: {actual_answer}")
 
+                blocks = create_answer_blocks(actual_answer)
+                section_blocks = [b for b in blocks if b.get("type") == "section"]
+                assert section_blocks, "Must generate at least one Slack section block"
+                for sb in section_blocks:
+                    assert sb.get("expand") is True, f"Section block must set expand=True to show full message by default: {sb}"
+
             elif cat == "TECH_CHECK_CODE":
                 chunks = rag.search(query, top_k=2)
                 srs_ctx = rag.format_context(chunks)
@@ -94,6 +101,9 @@ def run_python_330_test_suite():
                 report = run_srs_code_audit(query)
                 if report["totalChecked"] < 1 or "📋 *Báo cáo Audit SRS & Thực tế Hệ thống*" not in report["markdownSummary"]:
                     raise AssertionError(f"Invalid audit report for '{query}'")
+                for sb in report.get("slackBlocks", []):
+                    if sb.get("type") == "section":
+                        assert sb.get("expand") is True, f"Audit section block must set expand=True: {sb}"
 
             elif cat == "BA_USECASE_AND_QA_TESTCASE":
                 inst_type = "usecase" if actual_intent == "BA" else "testcase"
