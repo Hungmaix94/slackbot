@@ -28,7 +28,7 @@ from gemini_agent import (
 )
 from plane_client import PlaneClient
 from excel_generator import parse_all_markdown_tables, create_excel_from_tables
-from user_mapping import extract_and_resolve_assignees
+from user_mapping import extract_and_resolve_assignees, extract_inline_assignee_names, match_plane_member
 from testcase_collector import TestcaseCollector
 from antigravity_engine import MVLAntigravityEngine
 from env_config import (
@@ -347,6 +347,7 @@ async def handle_app_mention(event, say, client):
             say=say,
             trigger_text=text,
             bot_user_id=bot_user_id,
+            sender_user_id=event.get("user"),
         )
         return
 
@@ -387,6 +388,7 @@ async def handle_create_task_from_thread(
     say,
     trigger_text: str = "",
     bot_user_id: Optional[str] = None,
+    sender_user_id: Optional[str] = None,
 ):
     try:
         messages = []
@@ -438,6 +440,7 @@ async def handle_create_task_from_thread(
             bot_user_id=bot_user_id,
             plane_client=plane_client,
             explicit_assignee_text=task_data.get("explicit_assignee"),
+            sender_user_id=sender_user_id,
         )
         assignee_ids = [a[0] for a in resolved_assignees] if resolved_assignees else None
 
@@ -515,6 +518,7 @@ async def handle_create_plane_task_action(ack, body, client, say):
             say=say,
             trigger_text="tạo bug",
             bot_user_id=bot_user_id,
+            sender_user_id=body.get("user", {}).get("id"),
         )
     )
     background_tasks_set.add(task)
@@ -573,6 +577,7 @@ async def handle_create_task_command(ack, body, say, client):
             client=client,
             say=say,
             trigger_text=f"tạo task {text}".strip(),
+            sender_user_id=body.get("user_id"),
         )
     )
     background_tasks_set.add(task)
@@ -986,11 +991,22 @@ async def test_query(request: Request):
         }
 
     if intent == "CREATE_TASK":
-        clean_desc = re.sub(r"^(?:/create[-_]task|tạo\s+(?:nhanh\s+)?(?:bug|task)|log\s+bug)\s*", "", query, flags=re.I).strip()
+        clean_desc = re.sub(r"^(?:/create[-_]task|tạo\s+(?:nhanh\s+)?(?:bug|task|cr)|log\s+bug)\s*", "", query, flags=re.I).strip()
         proj_match = re.search(r"\[(MVLCTV|MVL|MVLGO|MAIVIETLAN|CRM|DEVOPS|DSTAX|FETEAMS|GLINTECOWEBS)\]", query, flags=re.I)
         proj_code = proj_match.group(1).upper() if proj_match else "MVLCTV"
         assignee_match = re.search(r"@([a-zA-Z0-9._\-]+)", query)
-        assignee = assignee_match.group(1) if assignee_match else "Chưa gán"
+        inline_names = extract_inline_assignee_names(query)
+        resolved_ids = []
+        for n in inline_names:
+            matched_m = match_plane_member([], raw_query=n)
+            if matched_m and matched_m.get("id"):
+                resolved_ids.append(matched_m["id"])
+        if assignee_match:
+            assignee_str = f"@{assignee_match.group(1)}"
+        elif inline_names:
+            assignee_str = ", ".join(inline_names)
+        else:
+            assignee_str = "Chưa gán"
         is_bug = "bug" in query.lower() or "lỗi" in query.lower()
         prefix = "[BUG]" if is_bug else "[TASK]"
         prio = "URGENT" if "500" in query or "khẩn" in query.lower() else ("HIGH" if is_bug else "MEDIUM")
@@ -998,12 +1014,13 @@ async def test_query(request: Request):
         title = re.sub(r"\s*(?:giao|assign)\s+@?[a-zA-Z0-9._\-]+\s*$", "", title, flags=re.I).strip()
         concise_card = (
             f"✅ *Đã tạo task Plane:* <https://pm.glinteco.com/glinteco/projects/{proj_code}/issues/preview|[{proj_code}-101] {prefix} {title[:60]}>\n"
-            f"• *Dự án:* `{proj_code}` | *Ưu tiên:* `{prio}` | *Giao cho:* @{assignee}"
+            f"• *Dự án:* `{proj_code}` | *Ưu tiên:* `{prio}` | *Giao cho:* {assignee_str}"
         )
         return {
             "query": query,
             "intent": intent,
             "techMode": False,
+            "resolvedAssignees": resolved_ids,
             "answer": concise_card,
         }
 
